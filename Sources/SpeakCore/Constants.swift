@@ -11,7 +11,8 @@ public enum Constants {
     public static let cap: Duration = .seconds(5 * 60)
     /// Finalize watchdog; on expiry the last volatile text is used.
     public static let finalize: Duration = .seconds(5)
-    /// Key reported up while still listening for this long is treated as a release.
+    /// Key reported up while still listening for this long means its key-up was
+    /// lost; the dictation is cancelled.
     public static let stuck: Duration = .milliseconds(300)
     /// Longest wait for modifiers to be released before posting ⌘V.
     public static let modWait: Duration = .milliseconds(500)
