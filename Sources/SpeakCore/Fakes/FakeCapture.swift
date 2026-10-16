@@ -1,0 +1,140 @@
+import Synchronization
+
+/// Stands in for the mic. Used by the tests and by fake mode (`SPEAK_FAKE=1`).
+public final class FakeAudioSource: AudioSource {
+    public struct Config: Sendable {
+        public var failure: AudioFailure?
+        public var peakDBFS: Double = -20
+        /// Start waits for `openGate()`, like a slow audio engine.
+        public var gated = false
+        public init() {}
+    }
+
+    private struct State {
+        var config = Config()
+        var isOpen = false
+        var opens = 0
+        var continuation: AsyncStream<AudioFrames>.Continuation?
+        var onEvent: (@Sendable (AudioEvent) -> Void)?
+        var gates: [CheckedContinuation<Void, Never>] = []
+    }
+
+    private let state = Mutex(State())
+
+    public init(_ config: Config = Config()) {
+        state.withLock { $0.config = config }
+    }
+
+    public var isOpen: Bool { state.withLock { $0.isOpen } }
+    public var opens: Int { state.withLock { $0.opens } }
+    public func configure(_ change: (inout Config) -> Void) { state.withLock { change(&$0.config) } }
+
+    /// Simulates the user unplugging a headset.
+    public func unplug() {
+        state.withLock { $0.onEvent }?(.deviceChanged)
+    }
+
+    /// Lets the oldest waiting gated start finish.
+    public func openGate() {
+        state.withLock { s in s.gates.isEmpty ? nil : s.gates.removeFirst() }?.resume()
+    }
+
+    /// Lets the most recent waiting gated start finish, out of order.
+    public func openNewestGate() {
+        state.withLock { s in s.gates.popLast() }?.resume()
+    }
+
+    public var waitingStarts: Int { state.withLock { $0.gates.count } }
+
+    public func start(onEvent: @escaping @Sendable (AudioEvent) -> Void) async throws -> AsyncStream<AudioFrames> {
+        let config = state.withLock { $0.config }
+        if config.gated {
+            await withCheckedContinuation { continuation in state.withLock { $0.gates.append(continuation) } }
+        }
+        if let failure = config.failure { throw failure }
+        let (stream, continuation) = AsyncStream<AudioFrames>.makeStream()
+        state.withLock {
+            $0.isOpen = true
+            $0.opens += 1
+            $0.continuation = continuation
+            $0.onEvent = onEvent
+        }
+        onEvent(.level(rms: 0.3, peakDBFS: config.peakDBFS))
+        continuation.yield(AudioFrames(0))
+        return stream
+    }
+
+    public func stop() async {
+        let continuation = state.withLock { s -> AsyncStream<AudioFrames>.Continuation? in
+            s.isOpen = false
+            defer { s.continuation = nil; s.onEvent = nil }
+            return s.continuation
+        }
+        continuation?.finish()
+    }
+}
+
+/// Stands in for the speech engine: returns fixed text once the audio ends.
+public final class FakeTranscriber: Transcriber {
+    public struct Config: Sendable {
+        public var text = "Hello world, this is a fake transcript."
+        /// Never finish finalizing, to exercise the watchdog.
+        public var hangOnFinalize = false
+        /// Never report any activity, to exercise the start watchdog.
+        public var silent = false
+        public var failToStart = false
+        public init() {}
+    }
+
+    struct StartFailed: Error {}
+
+    final class Counter: Sendable {
+        let value = Mutex(0)
+    }
+
+    private let config: Mutex<Config>
+    private let cancels = Counter()
+
+    public init(_ config: Config = Config()) {
+        self.config = Mutex(config)
+    }
+
+    public func configure(_ change: (inout Config) -> Void) { config.withLock { change(&$0) } }
+    public var cancelCount: Int { cancels.value.withLock { $0 } }
+
+    public func start(frames: AsyncStream<AudioFrames>,
+                      onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession {
+        let config = self.config.withLock { $0 }
+        if config.failToStart { throw StartFailed() }
+        let session = Session(config: config, frames: frames, cancels: cancels)
+        if !config.silent {
+            onEvent(.active)
+            onEvent(.partial(String(config.text.prefix(5))))
+        }
+        return session
+    }
+
+    final class Session: TranscriberSession {
+        let config: Config
+        let frames: AsyncStream<AudioFrames>
+        let cancels: Counter
+        init(config: Config, frames: AsyncStream<AudioFrames>, cancels: Counter) {
+            self.config = config
+            self.frames = frames
+            self.cancels = cancels
+        }
+
+        func finalize() async throws -> String {
+            for await _ in frames {} // Ends when the mic closes.
+            if config.hangOnFinalize {
+                // Like a hung framework call: ignore cancellation and never return.
+                await withCheckedContinuation { (_: CheckedContinuation<Void, Never>) in }
+            }
+            return config.text
+        }
+
+        func cancel() async {
+            cancels.value.withLock { $0 += 1 }
+        }
+    }
+}
