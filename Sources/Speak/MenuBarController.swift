@@ -8,6 +8,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let app: AppModel
     private let openSettings: () -> Void
+    private var shownIcon: MenuIcon?
 
     init(app: AppModel, openSettings: @escaping () -> Void) {
         self.app = app
@@ -23,9 +24,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func observeIcon() {
         withObservationTracking {
             let icon = MenuIcon(phase: app.controller.state.phase, hasProblem: app.hasProblem)
-            let image = NSImage(systemSymbolName: icon.symbol, accessibilityDescription: "Speak")
-            image?.isTemplate = true
-            statusItem.button?.image = image
+            if icon != shownIcon {
+                shownIcon = icon
+                let image = NSImage(systemSymbolName: icon.symbol, accessibilityDescription: "Speak")
+                image?.isTemplate = true
+                statusItem.button?.image = image
+                Log.session.info("menu icon \(icon.symbol, privacy: .public)")
+            }
         } onChange: { [weak self] in
             Task { @MainActor in self?.observeIcon() }
         }

@@ -42,8 +42,12 @@ final class EventTapHotkey: HotkeySource {
         }?.context.uninstall()
     }
 
+    /// For the stuck-key watchdog: is the hotkey possibly still held?
+    /// `keyState` alone reports a held Right Option as up, so also accept the
+    /// modifier flag. The watchdog only needs a reliable "definitely released".
     func isKeyDown(_ key: HotkeyChoice) -> Bool {
-        CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(key.keyCode))
+        if CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(key.keyCode)) { return true }
+        return CGEventSource.flagsState(.combinedSessionState).rawValue & key.familyMask != 0
     }
 
     func now() -> KeyTime { monotonicNow() }
@@ -102,7 +106,9 @@ private final class TapContext: @unchecked Sendable {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            let flags = CGEventSource.flagsState(.combinedSessionState).rawValue
             let down = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(decoder.key.keyCode))
+                || flags & decoder.key.familyMask != 0
             continuation.yield(decoder.resync(keyIsDown: down, at: now))
         case .flagsChanged, .keyDown, .keyUp:
             let kind: HotkeyDecoder.Kind = type == .flagsChanged ? .flagsChanged : type == .keyDown ? .keyDown : .keyUp

@@ -56,6 +56,15 @@ public struct HotkeyDecoder: Sendable {
 }
 
 public extension HotkeyChoice {
+    /// The device-independent flag for this kind of modifier (set if either side is down).
+    var familyMask: UInt64 {
+        switch self {
+        case .rightOption: 0x8_0000
+        case .rightCommand: 0x10_0000
+        case .rightControl: 0x4_0000
+        }
+    }
+
     /// The device-specific flag bit for this right-hand modifier.
     var deviceMask: UInt64 {
         switch self {
