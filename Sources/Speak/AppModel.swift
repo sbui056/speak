@@ -318,10 +318,12 @@ final class AppModel {
         let workspace = NSWorkspace.shared.notificationCenter
         let controller = self.controller
         workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { _ in
+            Log.session.notice("system sleep")
             controller.send(.systemSleep)
         }
         workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             // The event tap doesn't survive sleep reliably; recreate it.
+            Log.session.notice("system wake: hotkey restarted")
             MainActor.assumeIsolated { self?.startHotkey() }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
