@@ -39,9 +39,44 @@ public struct AppFiles: Sendable {
         try write(data, to: Self.dictionaryFile)
     }
 
+    /// One JSON entry per line, oldest first. Any unreadable line sets the whole file aside.
+    public func loadHistory() -> Loaded<[HistoryEntry]> {
+        let url = directory.appendingPathComponent(Self.historyFile)
+        guard let data = try? Data(contentsOf: url) else { return Loaded(value: [], wasCorrupt: false) }
+        do {
+            let decoder = JSONDecoder()
+            let entries = try data.split(separator: UInt8(ascii: "\n"))
+                .map { try decoder.decode(HistoryEntry.self, from: Data($0)) }
+            return Loaded(value: entries, wasCorrupt: false)
+        } catch {
+            moveAside(url)
+            return Loaded(value: [], wasCorrupt: true)
+        }
+    }
+
+    public func saveHistory(_ entries: [HistoryEntry]) throws {
+        let encoder = JSONEncoder()
+        var data = Data()
+        for entry in entries {
+            data.append(try encoder.encode(entry))
+            data.append(UInt8(ascii: "\n"))
+        }
+        try write(data, to: Self.historyFile)
+    }
+
+    /// Removes the history file and every `history.jsonl.corrupt-*` copy.
+    public func deleteHistory() {
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names where name == Self.historyFile || name.hasPrefix(Self.historyFile + ".corrupt-") {
+            try? fm.removeItem(at: directory.appendingPathComponent(name))
+        }
+    }
+
     // MARK: Private
 
     static let dictionaryFile = "dictionary.json"
+    static let historyFile = "history.jsonl"
 
     private struct DictionaryFile: Codable {
         var version: Int

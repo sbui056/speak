@@ -11,6 +11,12 @@ extension SessionController {
 
     public func pasteLast() async {
         guard let text = lastTranscript else { return }
+        await insert(text)
+    }
+
+    /// Pastes `text` into the frontmost app's field the way a dictation would; for
+    /// Paste last and Settings → Test dictation.
+    public func insert(_ text: String) async {
         // Opening the menu doesn't activate Speak, so the target is whatever is frontmost now.
         let context = await deliverer.capturePressContext()
         let outcome = await deliverer.deliver(text, context: context)

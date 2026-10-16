@@ -29,6 +29,7 @@ struct HUDModelTests {
         hud.show(.partial("ab"))
         hud.show(.partial("abc"))
         #expect(hud.content == .partial("a"))
+        await settle() // the throttle task must be asleep before time moves, or its deadline starts late
         await clock.advance(by: .seconds(1 / Constants.hudRate) + .milliseconds(10))
         #expect(hud.content == .partial("abc"))
     }

@@ -57,6 +57,15 @@ struct LifecycleTests {
         #expect(h.pasteboard.text == "banana")
     }
 
+    @Test func testInsertGoesThroughTheRealDeliveryPath() async {
+        let h = Harness()
+        await h.controller.insert("Speak can type here.")
+        #expect(h.env.pastes.count == 1)
+        #expect(h.pasteboard.text == "Speak can type here.")
+        #expect(h.hud == .result(.inserted))
+        #expect(h.controller.lastTranscript == nil) // a test isn't a dictation
+    }
+
     @Test func tapIsSilent() async {
         let h = Harness()
         await h.hold(for: .milliseconds(100))

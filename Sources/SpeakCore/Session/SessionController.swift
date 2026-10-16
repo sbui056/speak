@@ -22,6 +22,8 @@ public final class SessionController {
     @ObservationIgnored public var onPreviewChange: ((PreviewContent?) -> Void)?
     /// Called with every delivery result (pasted, or copied and why), for logging.
     @ObservationIgnored public var onDelivered: ((DeliveryOutcome) -> Void)?
+    /// Called with the text a session gave the user (pasted or copied), for history.
+    @ObservationIgnored public var onFinished: ((String) -> Void)?
     /// Called when the model's reply failed validation, for logging. Never sees text.
     @ObservationIgnored public var onRewriteRejected: ((RewriteMode) -> Void)?
 
@@ -114,8 +116,19 @@ public final class SessionController {
         let (next, effects) = reduce(state, event)
         state = next
         if case .delivered(let id, let outcome) = event, id == before.current { onDelivered?(outcome) }
+        reportFinished(event, before: before)
         if before.phase != next.phase { onTransition?(before.phase, next.phase, before.current ?? next.current) }
         for effect in effects { perform(effect) }
+    }
+
+    /// A delivery finished (inserted, or copied as a fallback), or the preview's Copy was chosen.
+    private func reportFinished(_ event: SessionEvent, before: SessionState) {
+        let delivered = before.phase == .delivering && state.phase != .delivering
+        var copied = false
+        if case .preview(_, .copy) = event, before.phase == .awaitingAcceptance, state.phase != .awaitingAcceptance {
+            copied = true
+        }
+        if delivered || copied, let text = state.delivered { onFinished?(text) }
     }
 
     private func perform(_ effect: Effect) {
