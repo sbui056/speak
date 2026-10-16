@@ -104,6 +104,11 @@ struct RewriteReducerTests {
         #expect(state.delivered == rewrite)
     }
 
+    @Test func hungDeliveryAfterAcceptCopiesTheAcceptedText() {
+        let (_, effects) = run(previewing + [.preview(s1, .insert(rewrite)), .timer(s1, .deliver)])
+        #expect(effects == [.copyToPasteboard(rewrite), .showHUD(.result(.copied)), .endSession(s1)])
+    }
+
     @Test func pressDuringPreviewSaysBusy() {
         let (state, effects) = run(previewing + [.pressed(at: ms(9000))])
         #expect(state.phase == .awaitingAcceptance)

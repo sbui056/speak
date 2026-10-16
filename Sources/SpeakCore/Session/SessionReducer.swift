@@ -199,7 +199,8 @@ struct Reducer {
         case (.deliver, .delivering):
             // Paste hung (an unresponsive app). Ending the session cancels it;
             // the text still ends up somewhere the user can get it.
-            if let literal = state.literal { emit(.copyToPasteboard(literal)) }
+            // The text being delivered: an accepted rewrite or edit, else the literal.
+            if let text = state.delivered ?? state.literal { emit(.copyToPasteboard(text)) }
             finish(.result(.copied))
         default:
             break // A timer for a phase already left.

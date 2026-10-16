@@ -32,8 +32,10 @@ public actor Deliverer {
     }
 
     /// Pastes or copies `text`. Cancelling the caller before the write abandons it.
-    public func deliver(_ text: String, context: PressContext?) async -> DeliveryOutcome {
-        await serially { await $0.deliverNow(text, context: context) }
+    /// `modifierWait` is how long held modifier keys may delay the paste.
+    public func deliver(_ text: String, context: PressContext?,
+                        modifierWait: Duration = Constants.modWait) async -> DeliveryOutcome {
+        await serially { await $0.deliverNow(text, context: context, modifierWait: modifierWait) }
     }
 
     /// A plain, retrievable copy (Copy last, and saving text on quit).
@@ -102,9 +104,9 @@ public actor Deliverer {
         return await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
     }
 
-    private func deliverNow(_ text: String, context: PressContext?) async -> DeliveryOutcome {
+    private func deliverNow(_ text: String, context: PressContext?, modifierWait: Duration) async -> DeliveryOutcome {
         await restorePending()
-        let modifiersHeld = await waitForModifiers()
+        let modifiersHeld = await waitForModifiers(upTo: modifierWait)
         let focusNow = await env.focusedElement()
         let snapshot = DeliverySnapshot(
             text: text,
@@ -207,11 +209,11 @@ public actor Deliverer {
     }
 
     /// ⌘V is wrong if the user is still holding Shift or Option, so wait briefly.
-    private func waitForModifiers() async -> Bool {
+    private func waitForModifiers(upTo limit: Duration) async -> Bool {
         let step: Duration = .milliseconds(20)
         var waited: Duration = .zero
         while await env.modifiersDown() {
-            if waited >= Constants.modWait { return true }
+            if waited >= limit { return true }
             _ = await Deadline(after: step, on: clock).reached()
             waited += step
         }

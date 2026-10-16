@@ -53,6 +53,29 @@ struct RewriteLifecycleTests {
         #expect(h.hud == .error(.appChanged))
     }
 
+    @Test func optionStillHeldAfterTheChoiceGetsTheLongerWait() async {
+        let h = polished()
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.controller.preview != nil })
+        // About 1 s of Option still down (20 ms per poll): longer than C-MODWAIT.
+        h.env.update { $0.modifierPolls = 50 }
+        h.controller.choose(.insertLiteral)
+        #expect(await h.clock.advance(until: { h.phase == .idle }))
+        #expect(h.env.pastes.count == 1)
+        #expect(h.hud == .result(.inserted))
+    }
+
+    @Test func optionHeldPastTheHandoffWaitCopies() async {
+        let h = polished()
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.controller.preview != nil })
+        h.env.update { $0.modifierPolls = 1000 }
+        h.controller.choose(.insertLiteral)
+        #expect(await h.clock.advance(until: { h.phase == .idle }))
+        #expect(h.env.pastes.isEmpty)
+        #expect(h.hud == .error(.modifiers))
+    }
+
     @Test func cancelThenPasteLastPastesTheLiteral() async {
         let h = polished()
         await h.hold(for: .milliseconds(1500))

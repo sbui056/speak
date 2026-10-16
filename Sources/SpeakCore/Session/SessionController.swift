@@ -186,7 +186,8 @@ public final class SessionController {
                 // After the preview, the app the user dictated into comes back first.
                 // If it doesn't, the delivery rules see the app change and copy instead.
                 if returnToApp, let pid = context?.pid { await deliverer.activate(pid) }
-                let outcome = await deliverer.deliver(text, context: context)
+                let outcome = await deliverer.deliver(text, context: context,
+                                                      modifierWait: returnToApp ? Constants.handoffModWait : Constants.modWait)
                 self?.send(.delivered(id, outcome))
             })
         case .copyToPasteboard(let text):

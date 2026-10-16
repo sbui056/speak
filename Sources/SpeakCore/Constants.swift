@@ -15,6 +15,9 @@ public enum Constants {
     public static let stuck: Duration = .milliseconds(300)
     /// Longest wait for modifiers to be released before posting ⌘V.
     public static let modWait: Duration = .milliseconds(500)
+    /// The same wait after a choice in the preview panel, where ⌥⏎ puts a finger
+    /// on Option by design.
+    public static let handoffModWait: Duration = .seconds(2)
     /// If delivery hasn't finished by then (a hung app), copy the text instead.
     public static let deliver: Duration = .seconds(3)
     /// Longest wait for the original app to become frontmost again after the preview.
