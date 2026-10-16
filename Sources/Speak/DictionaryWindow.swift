@@ -100,11 +100,12 @@ private struct HistoryRow: View {
     let entry: HistoryEntry
     let model: HistoryModel
 
+    private var time: String { entry.date.formatted(.dateTime.month().day().hour().minute()) }
+
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.date, format: .dateTime.month().day().hour().minute())
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(time).font(.caption).foregroundStyle(.secondary)
                 Text(entry.text).textSelection(.enabled)
             }
             Spacer()
@@ -115,14 +116,14 @@ private struct HistoryRow: View {
                 Image(systemName: "doc.on.doc")
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Copy")
+            .accessibilityLabel("Copy dictation from \(time)")
             Button {
                 model.delete(entry.id)
             } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Delete")
+            .accessibilityLabel("Delete dictation from \(time)")
         }
     }
 }

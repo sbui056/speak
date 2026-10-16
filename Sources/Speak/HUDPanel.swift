@@ -152,6 +152,7 @@ private struct LevelMeter: View {
         .frame(width: 60, height: 6)
         .animation(reduceMotion ? nil : .linear(duration: 0.05), value: level)
         .accessibilityLabel("Input level")
+        .accessibilityValue("\(Int(min(1, level * 4) * 100)) percent")
     }
 }
 
