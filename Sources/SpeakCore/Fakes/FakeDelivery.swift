@@ -151,3 +151,29 @@ public final class FakeHotkeySource: HotkeySource {
         continuation?.yield(event)
     }
 }
+
+/// Permissions the test grants and revokes by hand.
+public final class FakePermissionChecker: PermissionChecker {
+    private let state = Mutex<(granted: Set<Permission>, requests: [Permission], opened: [Permission])>(([], [], []))
+
+    public init(granted: Set<Permission> = Set(Permission.allCases)) {
+        state.withLock { $0.granted = granted }
+    }
+
+    public func set(_ permission: Permission, granted: Bool) {
+        state.withLock { s in
+            if granted { s.granted.insert(permission) } else { s.granted.remove(permission) }
+        }
+    }
+
+    public var opened: [Permission] { state.withLock { $0.opened } }
+
+    public func isGranted(_ permission: Permission) async -> Bool { state.withLock { $0.granted.contains(permission) } }
+
+    public func request(_ permission: Permission) async -> Bool {
+        state.withLock { $0.requests.append(permission) }
+        return permission == .microphone
+    }
+
+    public func openSettings(_ permission: Permission) async { state.withLock { $0.opened.append(permission) } }
+}

@@ -32,6 +32,16 @@ public final class HUDModel {
         }
     }
 
+    /// While the pointer is over an error, it stays up; leaving restarts its timer.
+    public func hover(_ inside: Bool) {
+        guard case .error = content else { return }
+        if inside {
+            hideTask?.cancel()
+        } else if let content {
+            set(content, hideAfter: Constants.hudError)
+        }
+    }
+
     public func hide() {
         cancelPending()
         content = nil

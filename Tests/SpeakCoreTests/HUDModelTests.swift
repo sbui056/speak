@@ -33,3 +33,18 @@ struct HUDModelTests {
         #expect(hud.content == .partial("abc"))
     }
 }
+
+@MainActor
+struct HUDHoverTests {
+    @Test func hoveringKeepsAnErrorOpen() async {
+        let clock = TestClock()
+        let hud = HUDModel(clock: clock)
+        hud.show(.error(.noField))
+        hud.hover(true)
+        await clock.advance(by: Constants.hudError * 2)
+        #expect(hud.content == .error(.noField))
+        hud.hover(false)
+        await clock.advance(by: Constants.hudError + .milliseconds(20))
+        #expect(hud.content == nil)
+    }
+}

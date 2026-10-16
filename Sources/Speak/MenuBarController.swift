@@ -1,34 +1,91 @@
 import AppKit
+import SpeakCore
 
-/// Owns the status item and its menu.
+/// Owns the status item: its icon follows the session, and the menu is rebuilt
+/// each time it opens so it's always current.
 @MainActor
-final class MenuBarController: NSObject {
+final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private let app: AppModel
     private let openSettings: () -> Void
 
-    init(openSettings: @escaping () -> Void) {
+    init(app: AppModel, openSettings: @escaping () -> Void) {
+        self.app = app
         self.openSettings = openSettings
         super.init()
-        if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Speak")
-            image?.isTemplate = true
-            button.image = image
-            button.setAccessibilityLabel("Speak")
-        }
-        statusItem.menu = buildMenu()
+        statusItem.button?.setAccessibilityLabel("Speak")
+        let menu = NSMenu()
+        menu.delegate = self
+        statusItem.menu = menu
+        observeIcon()
     }
 
-    private func buildMenu() -> NSMenu {
-        let menu = NSMenu()
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
+    private func observeIcon() {
+        withObservationTracking {
+            let icon = MenuIcon(phase: app.controller.state.phase, hasProblem: app.hasProblem)
+            let image = NSImage(systemSymbolName: icon.symbol, accessibilityDescription: "Speak")
+            image?.isTemplate = true
+            statusItem.button?.image = image
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.observeIcon() }
+        }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        let status = NSMenuItem(title: app.statusLine, action: nil, keyEquivalent: "")
+        status.isEnabled = false
+        menu.addItem(status)
+        if app.permissions.needsRelaunch {
+            menu.addItem(item("Relaunch Speak", #selector(relaunch)))
+        }
+        menu.addItem(.separator())
+
+        let hasLast = app.controller.lastTranscript != nil
+        let paste = item("Paste last transcript", #selector(pasteLast))
+        paste.isEnabled = hasLast
+        let copy = item("Copy last transcript", #selector(copyLast))
+        copy.isEnabled = hasLast
+        menu.addItem(paste)
+        menu.addItem(copy)
+        menu.addItem(.separator())
+
+        let mode = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
+        let modes = NSMenu()
+        let literal = NSMenuItem(title: "Literal", action: nil, keyEquivalent: "")
+        literal.state = .on
+        modes.addItem(literal)
+        for name in ["Concise", "Polished"] {
+            let rewrite = NSMenuItem(title: name, action: nil, keyEquivalent: "")
+            rewrite.isEnabled = false
+            rewrite.toolTip = "Not available yet"
+            modes.addItem(rewrite)
+        }
+        mode.submenu = modes
+        menu.addItem(mode)
+        menu.addItem(.separator())
+
+        menu.addItem(item("Settings…", #selector(settingsClicked), key: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Speak", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        return menu
     }
 
-    @objc private func settingsClicked() {
-        openSettings()
+    private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        return item
     }
+
+    @objc private func pasteLast() {
+        // Opening the menu doesn't activate Speak, so the user's app is still frontmost.
+        Task { await app.controller.pasteLast() }
+    }
+
+    @objc private func copyLast() {
+        Task { await app.controller.copyLast() }
+    }
+
+    @objc private func relaunch() { app.relaunch() }
+    @objc private func settingsClicked() { openSettings() }
 }
