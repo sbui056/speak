@@ -7,14 +7,16 @@ import SwiftUI
 final class DictionaryWindowController {
     private var window: NSWindow?
     private let dictionary: DictionaryModel
+    private let history: HistoryModel
 
-    init(dictionary: DictionaryModel) {
+    init(dictionary: DictionaryModel, history: HistoryModel) {
         self.dictionary = dictionary
+        self.history = history
     }
 
     func show() {
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: DictionaryView(model: dictionary)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: DictionaryTabs(dictionary: dictionary, history: history)))
             window.title = "Speak Dictionary"
             window.styleMask = [.titled, .closable, .resizable]
             window.isReleasedWhenClosed = false
@@ -26,6 +28,102 @@ final class DictionaryWindowController {
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
+    }
+}
+
+/// Terms, plus History while history is on.
+private struct DictionaryTabs: View {
+    let dictionary: DictionaryModel
+    let history: HistoryModel
+
+    var body: some View {
+        if history.isOn {
+            TabView {
+                DictionaryView(model: dictionary).tabItem { Text("Dictionary") }
+                HistoryView(model: history).tabItem { Text("History") }
+            }
+        } else {
+            DictionaryView(model: dictionary)
+        }
+    }
+}
+
+/// Recent dictations, newest first: Copy or Delete each, or Delete all.
+private struct HistoryView: View {
+    let model: HistoryModel
+    @State private var confirmDelete = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if model.showCorruptNotice {
+                HStack(alignment: .firstTextBaseline) {
+                    Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
+                    Text("The saved history couldn't be read, so it was set aside and a new one started.")
+                        .font(.callout)
+                    Spacer()
+                    Button("OK") { model.showCorruptNotice = false }
+                }
+                .padding(8)
+                .background(.yellow.opacity(0.15), in: .rect(cornerRadius: 6))
+            }
+            if model.saveFailed {
+                Text("Couldn't save history. Entries last until Speak quits.").font(.callout)
+            }
+            if model.entries.isEmpty {
+                Spacer()
+                Text("Your dictations will appear here.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List(model.entries) { entry in
+                    HistoryRow(entry: entry, model: model)
+                }
+                .listStyle(.inset(alternatesRowBackgrounds: true))
+                HStack {
+                    Text("\(model.entries.count) of \(Constants.historyMax)")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Delete all…") { confirmDelete = true }
+                }
+                .confirmationDialog("Delete all \(model.entries.count) entries?", isPresented: $confirmDelete) {
+                    Button("Delete all", role: .destructive) { model.deleteAll() }
+                }
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 360, minHeight: 320)
+    }
+}
+
+private struct HistoryRow: View {
+    let entry: HistoryEntry
+    let model: HistoryModel
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.date, format: .dateTime.month().day().hour().minute())
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(entry.text).textSelection(.enabled)
+            }
+            Spacer()
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(entry.text, forType: .string)
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Copy")
+            Button {
+                model.delete(entry.id)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Delete")
+        }
     }
 }
 

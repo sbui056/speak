@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import ServiceManagement
 import SpeakCore
 import Speech
 
@@ -11,6 +12,7 @@ final class AppModel {
     let controller: SessionController
     let permissions: PermissionsModel
     let dictionary: DictionaryModel
+    let history: HistoryModel
     /// `SPEAK_FAKE=1`: canned audio and transcript, real hotkey and delivery.
     let isFake: Bool
     private(set) var model: SpeechModelStatus = .downloading(percent: 0)
@@ -33,6 +35,19 @@ final class AppModel {
             sendRewriteSettings()
         }
     }
+
+    /// Keep the last C-HISTORY dictations (text only). Off by default.
+    var historyOn: Bool {
+        didSet {
+            UserDefaults.standard.set(historyOn, forKey: Keys.history)
+            history.isOn = historyOn
+        }
+    }
+
+    /// Mirrors `SMAppService.mainApp`; refreshed when Speak becomes active.
+    private(set) var launchAtLogin = false
+    /// Registered, but macOS wants the user to approve it in Login Items (`M-LOGIN-APPROVE`).
+    private(set) var loginNeedsApproval = false
 
     var hotkey: HotkeyChoice {
         didSet {
@@ -58,6 +73,9 @@ final class AppModel {
     @ObservationIgnored private let rewriter: any Rewriter
     @ObservationIgnored private var hotkeyTask: Task<Void, Never>?
     @ObservationIgnored private var installing = false
+    @ObservationIgnored private var timings = TimingLog()
+    /// Set at release: when, and in which mode; cleared once the dictation's timing is recorded.
+    @ObservationIgnored private var releasedAt: (ContinuousClock.Instant, RewriteMode)?
     /// Called when anything the menu-bar icon depends on changes.
     @ObservationIgnored var onIconInputsChange: (() -> Void)?
 
@@ -68,6 +86,7 @@ final class AppModel {
         static let previewPolicy = "previewPolicy"
         /// The P2 bool that `previewPolicy` replaces; migrated once, then removed.
         static let alwaysPreview = "alwaysPreview"
+        static let history = "history"
     }
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -82,6 +101,9 @@ final class AppModel {
         defaults.set(policy.rawValue, forKey: Keys.previewPolicy)
         defaults.removeObject(forKey: Keys.alwaysPreview)
         isFake = environment["SPEAK_FAKE"] == "1"
+        let historyOn = defaults.bool(forKey: Keys.history)
+        self.historyOn = historyOn
+        history = HistoryModel(files: .standard, isOn: historyOn)
 
         let clock = ContinuousClock()
         let hotkeySource = EventTapHotkey()
@@ -120,6 +142,7 @@ final class AppModel {
     func start() async -> Bool {
         controller.onTransition = { [weak self] from, to, id in
             self?.onIconInputsChange?()
+            self?.measure(from: from, to: to)
             Log.session.info("\(String(describing: from), privacy: .public) → \(String(describing: to), privacy: .public) \(id?.description ?? "-", privacy: .public)")
         }
         let controller = self.controller
@@ -130,6 +153,10 @@ final class AppModel {
         }
         controller.onDelivered = { outcome in
             Log.insert.info("delivery \(String(describing: outcome), privacy: .public)")
+        }
+        controller.onFinished = { [weak self] text in
+            self?.finishTiming(previewed: false)
+            self?.history.record(text)
         }
         controller.onRewriteRejected = { mode in
             Log.rewrite.info("rewrite rejected by the guard mode=\(mode.rawValue, privacy: .public)")
@@ -142,6 +169,7 @@ final class AppModel {
         startHotkey()
         Task { await refreshModel() }
         Task { await loadLocales() }
+        refreshLaunchAtLogin()
         return !permissions.allGranted
     }
 
@@ -164,6 +192,39 @@ final class AppModel {
         NSApp.terminate(nil)
     }
 
+    func setLaunchAtLogin(_ on: Bool) {
+        let service = SMAppService.mainApp
+        do {
+            if on { try service.register() } else { try service.unregister() }
+        } catch {
+            let ns = error as NSError
+            Log.perm.error("launch at login failed domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public)")
+        }
+        refreshLaunchAtLogin()
+    }
+
+    func openLoginItems() {
+        SMAppService.openSystemSettingsLoginItems()
+    }
+
+    /// Versions, permissions, model, settings, and timings; never text.
+    var diagnostics: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return Diagnostics(
+            appVersion: version,
+            osVersion: "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
+            permissions: permissions.granted, model: model, rewrite: rewriteAvailability,
+            settings: [("mode", mode.rawValue), ("previewPolicy", previewPolicy.rawValue),
+                       ("hotkey", hotkey.rawValue), ("language", locale.identifier),
+                       ("history", historyOn ? "last\(Constants.historyMax)" : "off"),
+                       ("launchAtLogin", launchAtLogin ? (loginNeedsApproval ? "needsApproval" : "on") : "off"),
+                       ("dictionaryTerms", String(dictionary.terms.count)), ("fake", String(isFake))],
+            timings: timings
+        ).report
+    }
+
     /// Re-checked on launch and whenever Speak becomes active, since Apple
     /// Intelligence can be turned on or off in System Settings at any time.
     func refreshRewriteAvailability() async {
@@ -176,6 +237,27 @@ final class AppModel {
     }
 
     // MARK: Private
+
+    private func refreshLaunchAtLogin() {
+        let status = SMAppService.mainApp.status
+        launchAtLogin = status == .enabled || status == .requiresApproval
+        loginNeedsApproval = status == .requiresApproval
+    }
+
+    /// Release starts the clock; the preview opening or the text landing stops it.
+    private func measure(from: Phase, to: Phase) {
+        if from == .listening, to == .finalizing { releasedAt = (.now, controller.state.sessionMode) }
+        if to == .awaitingAcceptance { finishTiming(previewed: true) }
+        if to == .idle { releasedAt = nil }
+    }
+
+    private func finishTiming(previewed: Bool) {
+        guard let (start, mode) = releasedAt else { return }
+        releasedAt = nil
+        let line = TimingLine.dictation(mode: mode, previewed: previewed, duration: .now - start)
+        timings.add(line)
+        Log.session.info("timing \(line.text, privacy: .public)")
+    }
 
     /// The session uses Literal while rewrites are unavailable, whatever was chosen.
     private func sendRewriteSettings() {
@@ -245,6 +327,7 @@ final class AppModel {
                 guard let self else { return }
                 Task { await self.permissions.refresh() }
                 Task { await self.refreshRewriteAvailability() }
+                self.refreshLaunchAtLogin()
             }
         }
     }

@@ -35,6 +35,10 @@ final class SettingsWindowController {
 
 struct SettingsView: View {
     @Bindable var app: AppModel
+    @State private var confirmDelete = false
+    @State private var testText = ""
+    @State private var copiedDiagnostics = false
+    @FocusState private var testFocused: Bool
 
     var body: some View {
         Form {
@@ -98,10 +102,77 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Privacy") {
+                Picker("History", selection: $app.historyOn) {
+                    Text("Off").tag(false)
+                    Text("Last \(Constants.historyMax)").tag(true)
+                }
+                Text("Keeps the text of your recent dictations on this Mac, never audio. See it in the Dictionary window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Text(app.history.entries.isEmpty ? "No history saved" : "\(app.history.entries.count) saved")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Delete all history…") { confirmDelete = true }
+                        .disabled(app.history.entries.isEmpty)
+                }
+                .confirmationDialog("Delete all \(app.history.entries.count) entries?", isPresented: $confirmDelete) {
+                    Button("Delete all", role: .destructive) { app.history.deleteAll() }
+                }
+            }
+
+            Section("General") {
+                Toggle("Launch at login", isOn: Binding(get: { app.launchAtLogin },
+                                                        set: { app.setLaunchAtLogin($0) }))
+                if app.loginNeedsApproval {
+                    HStack {
+                        Text(Messages.loginApprove.text).font(.callout)
+                        Spacer()
+                        Button("Open Login Items") { app.openLoginItems() }
+                    }
+                }
+                HStack {
+                    Text("Diagnostics have versions, permissions, settings, and timings, but none of your text.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(copiedDiagnostics ? "Copied" : "Copy diagnostics") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(app.diagnostics, forType: .string)
+                        copiedDiagnostics = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(2))
+                            copiedDiagnostics = false
+                        }
+                    }
+                }
+            }
+
+            Section("Test") {
+                TextField("Click Test dictation, or dictate here", text: $testText, axis: .vertical)
+                    .lineLimit(2...4)
+                    .focused($testFocused)
+                HStack {
+                    Text("Types a sample sentence here the same way Speak types into other apps.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Test dictation") { runTest() }
+                }
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
+        // Seven sections don't fit a small screen; the form scrolls.
+        .frame(width: 480, height: 640)
+    }
+
+    private func runTest() {
+        testFocused = true
+        Task {
+            // Let the field take focus before the paste looks for it.
+            try? await Task.sleep(for: .milliseconds(150))
+            await app.controller.insert("Speak can type here.")
+        }
     }
 
     /// The supported languages, plus the current one even before they've loaded.

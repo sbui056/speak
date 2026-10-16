@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hud: HUDPanelController?
     private var preview: PreviewPanelController?
     private lazy var settings = SettingsWindowController(app: app)
-    private lazy var dictionary = DictionaryWindowController(dictionary: app.dictionary)
+    private lazy var dictionary = DictionaryWindowController(dictionary: app.dictionary, history: app.history)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = self.settings
