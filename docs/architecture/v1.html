@@ -183,7 +183,7 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <div class="wrap">
 <header>
-  <div class="eyebrow">Architecture · version 1 · October 2026</div>
+  <div class="eyebrow">Architecture · version 1 · as built · October 2026</div>
   <div class="title-row"><h1>Speak</h1><span class="live-dot" aria-hidden="true"></span></div>
   <p class="lede">Hold a key, talk, let go. Clean text appears at your cursor in any Mac app. Speech recognition and rewriting run on your Mac, and audio never touches the disk.</p>
   <div class="stats" role="list">
@@ -254,7 +254,7 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
         <text class="elabel" x="985" y="250">final text</text>
         <g class="node" id="n-clean"><rect x="880" y="300" width="190" height="64" rx="10"/><text class="t" x="975" y="327" text-anchor="middle">Literal cleanup</text><text class="s" x="975" y="347" text-anchor="middle">+ dictionary fixes</text></g>
         <g class="node" id="n-rewrite"><rect x="600" y="300" width="190" height="64" rx="10"/><text class="t" x="695" y="327" text-anchor="middle">Rewriter</text><text class="s" x="695" y="347" text-anchor="middle">Foundation Models</text></g>
-        <g class="node" id="n-preview"><rect x="320" y="300" width="190" height="64" rx="10"/><text class="t" x="415" y="327" text-anchor="middle">Preview</text><text class="s" x="415" y="347" text-anchor="middle">only if words changed</text></g>
+        <g class="node" id="n-preview"><rect x="320" y="300" width="190" height="64" rx="10"/><text class="t" x="415" y="327" text-anchor="middle">Preview</text><text class="s" x="415" y="347" text-anchor="middle">per Show preview</text></g>
         <g class="node" id="n-rules"><rect x="40" y="300" width="190" height="64" rx="10"/><text class="t" x="135" y="327" text-anchor="middle">Delivery checks</text><text class="s" x="135" y="347" text-anchor="middle">8 rules, in order</text></g>
 
         <line class="edge" id="e-clean-rewrite" x1="880" y1="332" x2="792" y2="332" marker-end="url(#ah)"/>
@@ -368,7 +368,7 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
     <div class="seam">protocol seam · one real implementation + one fake each</div>
     <div class="layer">
       <div class="name"><h3>Adapters</h3><span>target: Speak</span></div>
-      <div class="parts"><span class="tag">HotkeySource</span><span class="tag">AudioSource</span><span class="tag">Transcriber</span><span class="tag">SpeechModelStore</span><span class="tag">Rewriter</span><span class="tag">SpellChecker</span><span class="tag">DeliveryEnvironment</span><span class="tag">Pasteboard</span><span class="tag">PermissionChecker</span><span class="tag">Clock</span><span class="tag">Store</span></div>
+      <div class="parts"><span class="tag">HotkeySource</span><span class="tag">AudioSource</span><span class="tag">Transcriber</span><span class="tag">SpeechModelStore</span><span class="tag">Rewriter</span><span class="tag">SpellChecker</span><span class="tag">DeliveryEnvironment</span><span class="tag">Pasteboard</span><span class="tag">PermissionChecker</span><span class="tag">Clock</span><span class="tag">AppFiles</span></div>
     </div>
     <div class="layer apple">
       <div class="name"><h3>Apple frameworks</h3><span>macOS 26 · on-device</span></div>
@@ -386,7 +386,8 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
     <div class="promise"><h3>No network</h3><p>No networking code and no network entitlement. Apple's own model downloads are managed by the system.</p><span class="how">enforced: privacy check fails CI on any network API</span></div>
     <div class="promise"><h3>No audio on disk</h3><p>Buffers stream from the mic to the analyzer and are released straight away. Nothing is written, nothing is logged.</p><span class="how">enforced: tests assert no file I/O in the audio path</span></div>
     <div class="promise"><h3>The mic is open only while you hold</h3><p>Only two states open the mic, and every exit path closes it, including watchdogs for a lost key-up.</p><span class="how">enforced: 1,000 random event sequences in a property test</span></div>
-    <div class="promise"><h3>No silent rewrites</h3><p>If the on-device model changes your words, you see a diff and accept it. Your literal transcript is always kept.</p><span class="how">enforced: tests that rejecting leaves the literal byte-identical</span></div>
+    <div class="promise"><h3>No silent rewrites, by default</h3><p>If the on-device model changes your words, you see a diff and accept it. Your literal transcript is always kept. Show preview = Never is an opt-in, and then Paste last gives back your own words.</p><span class="how">enforced: tests that rejecting leaves the literal byte-identical</span></div>
+    <div class="promise"><h3>History is opt-in</h3><p>Off by default. When on: text only, the last 50, in a private folder excluded from backups. Logs and Copy diagnostics never contain text.</p><span class="how">enforced: storage and diagnostics tests; log privacy check in CI</span></div>
   </div>
 </section>
 
@@ -429,7 +430,22 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
   </div>
 </section>
 
-<footer><span>Speak · architecture v1 · 2026-10-15</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
+<section id="built" aria-labelledby="h-built">
+  <div class="section-head">
+    <div class="eyebrow">08 · As built</div>
+    <h2 id="h-built">What the implementation added</h2>
+  </div>
+  <div class="grid2">
+    <div class="promise"><h3>Keys</h3><p>A pure decoder turns raw modifier events into press, release, chord, and cancel, using the right-hand device bit so Left Option never counts. The tap runs on its own thread and is rebuilt after sleep; a disabled tap re-reads the live key state.</p></div>
+    <div class="promise"><h3>Timers</h3><p>Every watchdog is a deadline fixed at creation, not at first scheduling, so timeouts don't drift later under load.</p></div>
+    <div class="promise"><h3>Literal step</h3><p>Tidy whitespace, capitalize, then dictionary correction: exact phrases take the term's casing; a one-edit near-miss is fixed only if the spell checker flags the word.</p></div>
+    <div class="promise"><h3>Rewrite and preview</h3><p>One guarded <code>&lt;cleaned&gt;</code> block with ratio and overlap checks, else the literal. Show preview: When words change (default), Always, or Never. The panel never takes focus; on a choice Speak re-activates the original app and waits up to 2 s for ⌥ to lift.</p></div>
+    <div class="promise"><h3>Delivery rescue and undo</h3><p>A paste that hasn't finished in 3 s becomes a copy of the accepted text. Undo insert is offered for 30 s while the same app, field, and length still match, with focus read from the frontmost app.</p></div>
+    <div class="promise"><h3>History and diagnostics</h3><p>Finished dictations go to a JSON-lines file (newest 50) when history is on. Release-to-result timings go to the log, and the last 20 go into Copy diagnostics with versions, permissions, and settings.</p></div>
+  </div>
+</section>
+
+<footer><span>Speak · architecture v1 · as built 2026-10-16</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
 </div>
 
 <script>
