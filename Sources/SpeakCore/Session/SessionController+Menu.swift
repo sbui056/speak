@@ -16,11 +16,13 @@ extension SessionController {
 
     /// Pastes `text` into the frontmost app's field the way a dictation would; for
     /// Paste last and Settings → Test dictation.
-    public func insert(_ text: String) async {
+    @discardableResult
+    public func insert(_ text: String) async -> DeliveryOutcome {
         // Opening the menu doesn't activate Speak, so the target is whatever is frontmost now.
         let context = await deliverer.capturePressContext()
         let outcome = await deliverer.deliver(text, context: context)
         show(outcome)
+        return outcome
     }
 
     /// The last paste can be undone now: still within the undo window, same app and field.

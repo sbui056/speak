@@ -41,6 +41,7 @@ final class AppModel {
         didSet {
             UserDefaults.standard.set(historyOn, forKey: Keys.history)
             history.isOn = historyOn
+            Log.session.info("history on=\(self.historyOn, privacy: .public) entries=\(self.history.entries.count, privacy: .public)")
         }
     }
 
@@ -240,6 +241,7 @@ final class AppModel {
 
     private func refreshLaunchAtLogin() {
         let status = SMAppService.mainApp.status
+        Log.perm.info("launch at login status=\(status.rawValue, privacy: .public)")
         launchAtLogin = status == .enabled || status == .requiresApproval
         loginNeedsApproval = status == .requiresApproval
     }
@@ -256,7 +258,8 @@ final class AppModel {
         releasedAt = nil
         let line = TimingLine.dictation(mode: mode, previewed: previewed, duration: .now - start)
         timings.add(line)
-        Log.session.info("timing \(line.text, privacy: .public)")
+        // Notice, not info: persisted for days, so README latency can be computed from everyday use.
+        Log.session.notice("timing \(line.text, privacy: .public)")
     }
 
     /// The session uses Literal while rewrites are unavailable, whatever was chosen.

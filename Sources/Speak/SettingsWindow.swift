@@ -119,7 +119,10 @@ struct SettingsView: View {
                         .disabled(app.history.entries.isEmpty)
                 }
                 .confirmationDialog("Delete all \(app.history.entries.count) entries?", isPresented: $confirmDelete) {
-                    Button("Delete all", role: .destructive) { app.history.deleteAll() }
+                    Button("Delete all", role: .destructive) {
+                        Log.session.info("history delete all entries=\(app.history.entries.count, privacy: .public)")
+                        app.history.deleteAll()
+                    }
                 }
             }
 
@@ -139,7 +142,9 @@ struct SettingsView: View {
                     Spacer()
                     Button(copiedDiagnostics ? "Copied" : "Copy diagnostics") {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(app.diagnostics, forType: .string)
+                        let report = app.diagnostics
+                        NSPasteboard.general.setString(report, forType: .string)
+                        Log.session.info("diagnostics copied lines=\(report.split(separator: "\n").count, privacy: .public)")
                         copiedDiagnostics = true
                         Task {
                             try? await Task.sleep(for: .seconds(2))
@@ -171,7 +176,8 @@ struct SettingsView: View {
         Task {
             // Let the field take focus before the paste looks for it.
             try? await Task.sleep(for: .milliseconds(150))
-            await app.controller.insert("Speak can type here.")
+            let outcome = await app.controller.insert("Speak can type here.")
+            Log.insert.info("test dictation \(String(describing: outcome), privacy: .public)")
         }
     }
 

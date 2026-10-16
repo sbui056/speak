@@ -59,7 +59,7 @@ struct LifecycleTests {
 
     @Test func testInsertGoesThroughTheRealDeliveryPath() async {
         let h = Harness()
-        await h.controller.insert("Speak can type here.")
+        #expect(await h.controller.insert("Speak can type here.") == .inserted)
         #expect(h.env.pastes.count == 1)
         #expect(h.pasteboard.text == "Speak can type here.")
         #expect(h.hud == .result(.inserted))
