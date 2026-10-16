@@ -1,0 +1,14 @@
+# Build output
+.build/
+.swiftpm/
+*.app
+xcuserdata/
+
+# Signing material (created locally, never committed)
+*.p12
+*.key
+*.cer
+*.certSigningRequest
+
+# macOS
+.DS_Store

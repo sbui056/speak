@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speak Architecture v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one technical spec sheet, a single column, wide figures that scroll inside their own frames. Orange is reserved for "mic open". */
+:root {
+  --bg: #F3F5F7;
+  --surface: #FFFFFF;
+  --fg: #141920;
+  --muted: #5A6472;
+  --line: #CBD2DA;
+  --edge: #46515F;
+  --accent: #D9480F;
+  --accent-soft: rgba(217, 72, 15, 0.10);
+  --device: #2B7A80;
+  --ok: #1E7A4C;
+  --copy: #8A5A00;
+  --f-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", -apple-system, "Helvetica Neue", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1116; --surface: #151A21; --fg: #E6EAEF; --muted: #98A3B1; --line: #2C3540;
+    --edge: #A9B3BF; --accent: #FF9F0A; --accent-soft: rgba(255, 159, 10, 0.13);
+    --device: #5DB4BB; --ok: #4CC38A; --copy: #E3B341; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1116; --surface: #151A21; --fg: #E6EAEF; --muted: #98A3B1; --line: #2C3540;
+  --edge: #A9B3BF; --accent: #FF9F0A; --accent-soft: rgba(255, 159, 10, 0.13);
+  --device: #5DB4BB; --ok: #4CC38A; --copy: #E3B341; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 72px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(24px, 3.2vw, 32px); font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 17px; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--f-mono); font-size: 0.88em; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+section { display: grid; gap: 20px; }
+.section-head { display: grid; gap: 8px; }
+.section-head p { color: var(--muted); }
+
+/* Header */
+header { padding-top: 56px; display: grid; gap: 24px; }
+.title-row { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+h1 { font-size: clamp(56px, 9vw, 96px); font-weight: 700; letter-spacing: -0.03em; line-height: 0.95; }
+.live-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); display: inline-block; box-shadow: 0 0 0 6px var(--accent-soft); }
+.lede { font-size: clamp(18px, 2.2vw, 21px); max-width: 60ch; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stat { padding: 16px 16px 16px 0; display: grid; gap: 2px; }
+.stat + .stat { padding-left: 16px; border-left: 1px solid var(--line); }
+.stat b { font-family: var(--f-display); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 14px; }
+@media (max-width: 720px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat:nth-child(3) { padding-left: 0; border-left: 0; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+
+/* Figures */
+figure { margin: 0; display: grid; gap: 12px; }
+.frame { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.frame svg { display: block; width: 100%; min-width: 760px; height: auto; color: var(--fg); }
+figcaption { color: var(--muted); font-size: 14px; max-width: 80ch; }
+
+/* SVG styling */
+.node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; transition: stroke 200ms, fill 200ms; }
+.node .t { font-family: var(--f-body); font-weight: 600; font-size: 14px; fill: var(--fg); }
+.node .s { font-family: var(--f-mono); font-size: 11px; fill: var(--muted); }
+.edge { stroke: var(--edge); stroke-width: 1.5; fill: none; transition: stroke 200ms, stroke-width 200ms, opacity 200ms; }
+.edge.alt { stroke-dasharray: 5 5; }
+.elabel { font-family: var(--f-mono); font-size: 11px; fill: var(--muted); }
+.boundary { fill: none; stroke: var(--device); stroke-width: 1.5; stroke-dasharray: 8 6; }
+.blabel { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.1em; fill: var(--device); }
+.node.active rect { stroke: var(--fg); stroke-width: 2.5; }
+.node.mic rect { stroke: var(--accent); fill: var(--accent-soft); stroke-width: 2.5; }
+.node.done rect { stroke: var(--edge); }
+.node.copy rect { stroke: var(--copy); stroke-width: 2.5; }
+.edge.active { stroke: var(--fg); stroke-width: 2.5; }
+.dim { opacity: 0.28; }
+.arrowhead { fill: var(--edge); }
+.state rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.state text { font-family: var(--f-mono); font-size: 12px; fill: var(--fg); }
+.state.micstate rect { stroke: var(--accent); stroke-dasharray: 4 3; }
+.state.active rect { stroke: var(--fg); stroke-width: 2.5; }
+.state.active.micstate rect { fill: var(--accent-soft); stroke: var(--accent); stroke-dasharray: none; }
+.legend text { font-family: var(--f-mono); font-size: 11px; fill: var(--muted); }
+
+/* Player controls */
+.player { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); flex-wrap: wrap; }
+.seg button { font: 500 14px var(--f-body); color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer; min-height: 40px; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.play { font: 600 15px var(--f-body); background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 10px 22px; min-height: 44px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+:root[data-theme="dark"] .play { color: #1A1206; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .play { color: #1A1206; } }
+button:focus-visible { outline: 2px solid var(--device); outline-offset: 2px; }
+.readout { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 16px; align-items: center; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.chip { font-family: var(--f-mono); font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.chip.mic { border-color: var(--accent); background: var(--accent-soft); }
+.clock { font-family: var(--f-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.note { font-size: 15px; min-width: 0; }
+@media (max-width: 640px) { .readout { grid-template-columns: auto minmax(0, 1fr); } .note { grid-column: 1 / -1; } }
+
+/* Delivery ladder */
+.ladder { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.ladder li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 12px 16px; }
+.ladder li + li { border-top: 1px solid var(--line); }
+.ladder .n { font-family: var(--f-mono); color: var(--muted); font-size: 13px; }
+.ladder .q { min-width: 0; }
+.ladder .q small { display: block; color: var(--muted); font-size: 13px; }
+.out { font-family: var(--f-mono); font-size: 12px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; border: 1px solid; }
+.out.copy { color: var(--copy); border-color: var(--copy); }
+.out.paste { color: var(--ok); border-color: var(--ok); }
+.out.none { color: var(--muted); border-color: var(--line); }
+@media (max-width: 560px) { .ladder li { grid-template-columns: 28px minmax(0, 1fr); } .ladder .out { grid-column: 2; justify-self: start; } }
+
+/* Layers */
+.layers { display: grid; gap: 8px; }
+.layer { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.layer.core { border-color: var(--fg); border-width: 2px; }
+.layer.apple { background: transparent; border-style: dashed; }
+.layer .name { display: grid; gap: 4px; align-content: start; }
+.layer .name span { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.layer .parts { display: flex; flex-wrap: wrap; gap: 8px; align-content: start; min-width: 0; }
+.tag { font-family: var(--f-mono); font-size: 12.5px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.seam { font-family: var(--f-mono); font-size: 12px; color: var(--muted); text-align: center; padding: 2px 0; }
+@media (max-width: 720px) { .layer { grid-template-columns: minmax(0, 1fr); gap: 10px; } }
+
+/* Privacy */
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 720px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.promise { display: grid; gap: 6px; padding: 18px; border-top: 2px solid var(--device); background: var(--surface); border-radius: 0 0 10px 10px; }
+.promise p { color: var(--muted); font-size: 15px; }
+.promise .how { font-family: var(--f-mono); font-size: 12.5px; color: var(--fg); }
+
+/* Risk table */
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; width: 26%; }
+td:last-child { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); width: 18%; }
+
+/* Roadmap */
+.phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--fg); }
+.phase { padding: 16px 16px 0 0; display: grid; gap: 8px; align-content: start; }
+.phase + .phase { padding-left: 16px; border-left: 1px solid var(--line); }
+.phase .pn { font-family: var(--f-mono); font-size: 13px; color: var(--muted); }
+.phase ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14.5px; display: grid; gap: 4px; }
+.phase .gate { font-family: var(--f-mono); font-size: 12.5px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.phase.daily h3::after { content: "daily driver"; font-family: var(--f-mono); font-size: 11px; font-weight: 500; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--fg); vertical-align: middle; }
+@media (max-width: 820px) {
+  .phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .phase:nth-child(3) { padding-left: 0; border-left: 0; }
+  .phase:nth-child(n+3) { margin-top: 20px; }
+}
+@media (max-width: 480px) { .phases { grid-template-columns: minmax(0, 1fr); } .phase + .phase { padding-left: 0; border-left: 0; margin-top: 20px; } }
+
+footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Architecture · version 1 · October 2026</div>
+  <div class="title-row"><h1>Speak</h1><span class="live-dot" aria-hidden="true"></span></div>
+  <p class="lede">Hold a key, talk, let go. Clean text appears at your cursor in any Mac app. Speech recognition and rewriting run on your Mac, and audio never touches the disk.</p>
+  <div class="stats" role="list">
+    <div class="stat" role="listitem"><b>0</b><span>network calls</span></div>
+    <div class="stat" role="listitem"><b>0 bytes</b><span>of audio on disk</span></div>
+    <div class="stat" role="listitem"><b>≤1.5 s</b><span>median release-to-text target</span></div>
+    <div class="stat" role="listitem"><b>$0</b><span>running cost</span></div>
+  </div>
+</header>
+
+<section id="pipeline" aria-labelledby="h-pipeline">
+  <div class="section-head">
+    <div class="eyebrow">01 · Pipeline</div>
+    <h2 id="h-pipeline">One dictation, end to end</h2>
+    <p>Pick a scenario and press Play to follow a single dictation. Orange marks the moments the microphone is open.</p>
+  </div>
+  <div class="player">
+    <div class="seg" role="group" aria-label="Scenario">
+      <button type="button" id="sc-literal" data-sc="literal" aria-pressed="true">Literal</button>
+      <button type="button" id="sc-polished" data-sc="polished" aria-pressed="false">Polished</button>
+      <button type="button" id="sc-denied" data-sc="denied" aria-pressed="false">Permission missing</button>
+    </div>
+    <button type="button" class="play" id="play"><span aria-hidden="true">▶</span><span id="play-label">Play dictation</span></button>
+  </div>
+  <div class="readout" aria-live="polite">
+    <span class="chip" id="ro-state">idle</span>
+    <span class="clock" id="ro-time">t = 0</span>
+    <span class="note" id="ro-note">Waiting for the hotkey. Nothing is listening.</span>
+  </div>
+  <figure>
+    <div class="frame">
+      <svg id="pipe" viewBox="0 0 1110 610" role="img" aria-label="Speak pipeline: hotkey tap opens the microphone, audio streams to the on-device speech analyzer, the literal transcript is cleaned, optionally rewritten and previewed, then delivery checks decide between pasting at the cursor and copying to the clipboard. Everything stays on the Mac.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrowhead"/></marker>
+        </defs>
+        <rect class="boundary" x="14" y="14" width="1082" height="582" rx="14"/>
+        <text class="blabel" x="40" y="580">YOUR MAC · ON-DEVICE · NO NETWORK · NO AUDIO ON DISK</text>
+
+        <g class="legend" transform="translate(40 44)">
+          <rect x="0" y="0" width="14" height="14" rx="3" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+          <text x="22" y="11">mic open</text>
+          <line x1="110" y1="7" x2="150" y2="7" class="edge" marker-end="url(#ah)"/>
+          <text x="158" y="11">data</text>
+          <line x1="210" y1="7" x2="250" y2="7" class="edge alt" marker-end="url(#ah)"/>
+          <text x="258" y="11">UI update or alternate path</text>
+        </g>
+
+        <!-- Row 0: HUD -->
+        <g class="node" id="n-hud"><rect x="880" y="36" width="190" height="52" rx="10"/><text class="t" x="975" y="58" text-anchor="middle">HUD</text><text class="s" x="975" y="76" text-anchor="middle">timer · level · live text</text></g>
+
+        <!-- Row 1: capture -->
+        <g class="node" id="n-key"><rect x="40" y="130" width="190" height="64" rx="10"/><text class="t" x="135" y="157" text-anchor="middle">Hold Right Option</text><text class="s" x="135" y="177" text-anchor="middle">you talk</text></g>
+        <g class="node" id="n-tap"><rect x="320" y="130" width="190" height="64" rx="10"/><text class="t" x="415" y="157" text-anchor="middle">Hotkey tap</text><text class="s" x="415" y="177" text-anchor="middle">CGEventTap · listen-only</text></g>
+        <g class="node" id="n-mic"><rect x="600" y="130" width="190" height="64" rx="10"/><text class="t" x="695" y="157" text-anchor="middle">Microphone</text><text class="s" x="695" y="177" text-anchor="middle">AVAudioEngine · RAM only</text></g>
+        <g class="node" id="n-stt"><rect x="880" y="130" width="190" height="64" rx="10"/><text class="t" x="975" y="157" text-anchor="middle">SpeechAnalyzer</text><text class="s" x="975" y="177" text-anchor="middle">on-device · streaming</text></g>
+
+        <line class="edge" id="e-key-tap" x1="230" y1="162" x2="318" y2="162" marker-end="url(#ah)"/>
+        <text class="elabel" x="275" y="152" text-anchor="middle">key down/up</text>
+        <line class="edge" id="e-tap-mic" x1="510" y1="162" x2="598" y2="162" marker-end="url(#ah)"/>
+        <text class="elabel" x="555" y="152" text-anchor="middle">open at press</text>
+        <line class="edge" id="e-mic-stt" x1="790" y1="162" x2="878" y2="162" marker-end="url(#ah)"/>
+        <text class="elabel" x="835" y="152" text-anchor="middle">PCM buffers</text>
+        <line class="edge alt" id="e-stt-hud" x1="975" y1="130" x2="975" y2="90" marker-end="url(#ah)"/>
+        <text class="elabel" x="985" y="114">partials</text>
+
+        <!-- Row 2: shape (right to left) -->
+        <line class="edge" id="e-stt-clean" x1="975" y1="194" x2="975" y2="298" marker-end="url(#ah)"/>
+        <text class="elabel" x="985" y="250">final text</text>
+        <g class="node" id="n-clean"><rect x="880" y="300" width="190" height="64" rx="10"/><text class="t" x="975" y="327" text-anchor="middle">Literal cleanup</text><text class="s" x="975" y="347" text-anchor="middle">+ dictionary fixes</text></g>
+        <g class="node" id="n-rewrite"><rect x="600" y="300" width="190" height="64" rx="10"/><text class="t" x="695" y="327" text-anchor="middle">Rewriter</text><text class="s" x="695" y="347" text-anchor="middle">Foundation Models</text></g>
+        <g class="node" id="n-preview"><rect x="320" y="300" width="190" height="64" rx="10"/><text class="t" x="415" y="327" text-anchor="middle">Preview</text><text class="s" x="415" y="347" text-anchor="middle">only if words changed</text></g>
+        <g class="node" id="n-rules"><rect x="40" y="300" width="190" height="64" rx="10"/><text class="t" x="135" y="327" text-anchor="middle">Delivery checks</text><text class="s" x="135" y="347" text-anchor="middle">8 rules, in order</text></g>
+
+        <line class="edge" id="e-clean-rewrite" x1="880" y1="332" x2="792" y2="332" marker-end="url(#ah)"/>
+        <text class="elabel" x="835" y="322" text-anchor="middle">literal</text>
+        <line class="edge" id="e-rewrite-preview" x1="600" y1="332" x2="512" y2="332" marker-end="url(#ah)"/>
+        <text class="elabel" x="555" y="322" text-anchor="middle">rewrite</text>
+        <line class="edge" id="e-preview-rules" x1="320" y1="332" x2="232" y2="332" marker-end="url(#ah)"/>
+        <text class="elabel" x="275" y="322" text-anchor="middle">accepted</text>
+        <path class="edge alt" id="e-bypass" d="M960 364 V398 Q960 414 944 414 H216 Q200 414 200 398 V366" marker-end="url(#ah)"/>
+        <text class="elabel" x="580" y="406" text-anchor="middle">Literal mode skips the rewrite and preview</text>
+
+        <!-- Row 3: deliver -->
+        <line class="edge" id="e-rules-paste" x1="100" y1="364" x2="100" y2="468" marker-end="url(#ah)"/>
+        <text class="elabel" x="92" y="424" text-anchor="end">all pass</text>
+        <path class="edge" id="e-rules-copy" d="M170 364 V436 Q170 446 180 446 H405 Q415 446 415 456 V468" marker-end="url(#ah)"/>
+        <text class="elabel" x="300" y="438" text-anchor="middle">any check fails</text>
+        <g class="node" id="n-paste"><rect x="40" y="470" width="190" height="64" rx="10"/><text class="t" x="135" y="497" text-anchor="middle">Paste at cursor</text><text class="s" x="135" y="517" text-anchor="middle">⌘V · clipboard restored</text></g>
+        <g class="node" id="n-copy"><rect x="320" y="470" width="190" height="64" rx="10"/><text class="t" x="415" y="497" text-anchor="middle">Copy to clipboard</text><text class="s" x="415" y="517" text-anchor="middle">+ the exact reason</text></g>
+        <g class="node" id="n-ctrl"><rect x="600" y="470" width="470" height="64" rx="10"/><text class="t" x="835" y="497" text-anchor="middle">SessionController</text><text class="s" x="835" y="517" text-anchor="middle">one state machine runs every stage · pure Swift · unit-tested</text></g>
+      </svg>
+    </div>
+    <figcaption>Solid arrows carry data, dashed arrows are UI updates or an alternate path. Times in the walkthrough are design targets, not measurements. The README will publish measured medians.</figcaption>
+  </figure>
+</section>
+
+<section id="states" aria-labelledby="h-states">
+  <div class="section-head">
+    <div class="eyebrow">02 · Session states</div>
+    <h2 id="h-states">Every dictation follows the same nine states</h2>
+    <p>One state machine owns the session. A press during a busy state is ignored, and every path ends back at idle with the mic closed.</p>
+  </div>
+  <figure>
+    <div class="frame">
+      <svg viewBox="0 0 1110 270" role="img" aria-label="Session state machine: idle, arming, listening, finalizing, rewriting, awaiting acceptance, delivering, then inserted or copied. Arming and listening are the only states with the microphone open. Esc, chords, and device changes lead to cancelled or failed. Every terminal state returns to idle.">
+        <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrowhead"/></marker></defs>
+        <g class="state" id="s-idle"><rect x="14" y="96" width="112" height="44" rx="22"/><text x="70" y="123" text-anchor="middle">idle</text></g>
+        <g class="state micstate" id="s-arming"><rect x="150" y="96" width="112" height="44" rx="22"/><text x="206" y="123" text-anchor="middle">arming</text></g>
+        <g class="state micstate" id="s-listening"><rect x="286" y="96" width="112" height="44" rx="22"/><text x="342" y="123" text-anchor="middle">listening</text></g>
+        <g class="state" id="s-finalizing"><rect x="422" y="96" width="112" height="44" rx="22"/><text x="478" y="123" text-anchor="middle">finalizing</text></g>
+        <g class="state" id="s-rewriting"><rect x="558" y="96" width="112" height="44" rx="22"/><text x="614" y="123" text-anchor="middle">rewriting</text></g>
+        <g class="state" id="s-awaitingAcceptance"><rect x="694" y="96" width="112" height="44" rx="22"/><text x="750" y="118" text-anchor="middle">awaiting</text><text x="750" y="132" text-anchor="middle">acceptance</text></g>
+        <g class="state" id="s-delivering"><rect x="830" y="96" width="112" height="44" rx="22"/><text x="886" y="123" text-anchor="middle">delivering</text></g>
+        <g class="state" id="s-done"><rect x="966" y="96" width="130" height="44" rx="22"/><text x="1031" y="118" text-anchor="middle">inserted</text><text x="1031" y="132" text-anchor="middle">or copied</text></g>
+        <g class="state" id="s-cancelled"><rect x="440" y="206" width="230" height="40" rx="20"/><text x="555" y="231" text-anchor="middle">cancelled or failed</text></g>
+
+        <line class="edge" x1="126" y1="118" x2="148" y2="118" marker-end="url(#ah2)"/>
+        <line class="edge" x1="262" y1="118" x2="284" y2="118" marker-end="url(#ah2)"/>
+        <line class="edge" x1="398" y1="118" x2="420" y2="118" marker-end="url(#ah2)"/>
+        <line class="edge" x1="534" y1="118" x2="556" y2="118" marker-end="url(#ah2)"/>
+        <line class="edge" x1="670" y1="118" x2="692" y2="118" marker-end="url(#ah2)"/>
+        <line class="edge" x1="806" y1="118" x2="828" y2="118" marker-end="url(#ah2)"/>
+        <line class="edge" x1="942" y1="118" x2="964" y2="118" marker-end="url(#ah2)"/>
+        <text class="elabel" x="137" y="88" text-anchor="middle">press</text>
+        <text class="elabel" x="273" y="88" text-anchor="middle">≥200 ms</text>
+        <text class="elabel" x="409" y="88" text-anchor="middle">release</text>
+
+        <path class="edge alt" d="M206 96 V64 Q206 50 192 50 H84 Q70 50 70 64 V94" marker-end="url(#ah2)"/>
+        <text class="elabel" x="138" y="42" text-anchor="middle">tap or chord: discard silently</text>
+        <path class="edge alt" d="M478 96 V64 Q478 50 492 50 H600 Q614 50 614 64 V94" marker-end="url(#ah2)"/>
+        <path class="edge alt" d="M614 50 H736 Q750 50 750 64 V94" marker-end="url(#ah2)"/>
+        <path class="edge alt" d="M478 50 H872 Q886 50 886 64 V94" marker-end="url(#ah2)"/>
+        <text class="elabel" x="682" y="42" text-anchor="middle">skipped when not needed</text>
+
+        <path class="edge" d="M342 140 V212 Q342 226 356 226 H438" marker-end="url(#ah2)"/>
+        <text class="elabel" x="350" y="196">Esc · chord · device change</text>
+        <path class="edge" d="M750 140 V212 Q750 226 736 226 H672" marker-end="url(#ah2)"/>
+        <text class="elabel" x="758" y="196">Cancel</text>
+        <path class="edge alt" d="M1031 140 V250 Q1031 262 1017 262 H84 Q70 262 70 248 V142" marker-end="url(#ah2)"/>
+        <text class="elabel" x="1022" y="196" text-anchor="end">back to idle</text>
+
+        <g class="legend" transform="translate(150 158)"><rect x="0" y="0" width="14" height="10" rx="5" fill="none" stroke="var(--accent)" stroke-dasharray="4 3" stroke-width="1.5"/><text x="20" y="9">mic open only here</text></g>
+      </svg>
+    </div>
+    <figcaption>Results that arrive late from a cancelled session carry an old session token and are dropped, so they can never affect the next dictation.</figcaption>
+  </figure>
+</section>
+
+<section id="delivery" aria-labelledby="h-delivery">
+  <div class="section-head">
+    <div class="eyebrow">03 · Delivery</div>
+    <h2 id="h-delivery">Paste only when it's safe, otherwise copy</h2>
+    <p>The checks run in this order, immediately before the paste. The first failure copies the text and tells you exactly why, so your words are never lost.</p>
+  </div>
+  <ol class="ladder">
+    <li><span class="n">0</span><span class="q">Is there any text? <small>Empty after trimming.</small></span><span class="out none">nothing · “Didn't catch that”</span></li>
+    <li><span class="n">1</span><span class="q">Is Accessibility granted? <small>Checked fresh before every paste.</small></span><span class="out copy">copy · Accessibility not granted</span></li>
+    <li><span class="n">2</span><span class="q">Is secure input on? <small>Password fields, secure terminals.</small></span><span class="out copy">copy · Secure input is on</span></li>
+    <li><span class="n">3</span><span class="q">Is it still the same app? <small>Compared by process ID captured at key press.</small></span><span class="out copy">copy · App changed</span></li>
+    <li><span class="n">4</span><span class="q">Is a text field focused? <small>Only when the system can answer reliably.</small></span><span class="out copy">copy · No text field focused</span></li>
+    <li><span class="n">5</span><span class="q">Is it still the same field? <small>Focus moved since you pressed the key.</small></span><span class="out copy">copy · Focus moved</span></li>
+    <li><span class="n">6</span><span class="q">Are your modifier keys released? <small>Otherwise ⌘V would arrive as ⌘⌥V.</small></span><span class="out copy">copy · Release modifier keys</span></li>
+    <li><span class="n">7</span><span class="q">All clear <small>Save the clipboard, paste, then restore it unless you copied something new.</small></span><span class="out paste">paste at cursor</span></li>
+  </ol>
+</section>
+
+<section id="layers" aria-labelledby="h-layers">
+  <div class="section-head">
+    <div class="eyebrow">04 · Layers</div>
+    <h2 id="h-layers">Decisions live in pure Swift; the system sits behind a seam</h2>
+    <p>Every input enters one queue, and a pure function decides the next state and its effects, so no two events can race. The core never imports AppKit. Every macOS capability reaches it through a small protocol with one real implementation and one fake, so the whole pipeline runs in tests and in CI with no microphone.</p>
+  </div>
+  <div class="layers">
+    <div class="layer">
+      <div class="name"><h3>App shell</h3><span>target: Speak</span></div>
+      <div class="parts"><span class="tag">Menu bar</span><span class="tag">HUD panel</span><span class="tag">Preview panel</span><span class="tag">Settings</span><span class="tag">Dictionary</span></div>
+    </div>
+    <div class="layer core">
+      <div class="name"><h3>SpeakCore</h3><span>pure Swift · unit-tested</span></div>
+      <div class="parts"><span class="tag">Event queue</span><span class="tag">Session reducer</span><span class="tag">Effect runner</span><span class="tag">Literal cleaner</span><span class="tag">Dictionary</span><span class="tag">Injection guard</span><span class="tag">Word diff</span><span class="tag">Delivery rules</span><span class="tag">Messages</span><span class="tag">Constants</span></div>
+    </div>
+    <div class="seam">protocol seam · one real implementation + one fake each</div>
+    <div class="layer">
+      <div class="name"><h3>Adapters</h3><span>target: Speak</span></div>
+      <div class="parts"><span class="tag">HotkeySource</span><span class="tag">AudioSource</span><span class="tag">Transcriber</span><span class="tag">SpeechModelStore</span><span class="tag">Rewriter</span><span class="tag">SpellChecker</span><span class="tag">DeliveryEnvironment</span><span class="tag">Pasteboard</span><span class="tag">PermissionChecker</span><span class="tag">Clock</span><span class="tag">Store</span></div>
+    </div>
+    <div class="layer apple">
+      <div class="name"><h3>Apple frameworks</h3><span>macOS 26 · on-device</span></div>
+      <div class="parts"><span class="tag">Speech</span><span class="tag">FoundationModels</span><span class="tag">AVFAudio</span><span class="tag">CoreGraphics events</span><span class="tag">Accessibility</span><span class="tag">AppKit</span><span class="tag">ServiceManagement</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="privacy" aria-labelledby="h-privacy">
+  <div class="section-head">
+    <div class="eyebrow">05 · Privacy</div>
+    <h2 id="h-privacy">Privacy is enforced, not just promised</h2>
+  </div>
+  <div class="grid2">
+    <div class="promise"><h3>No network</h3><p>No networking code and no network entitlement. Apple's own model downloads are managed by the system.</p><span class="how">enforced: privacy check fails CI on any network API</span></div>
+    <div class="promise"><h3>No audio on disk</h3><p>Buffers stream from the mic to the analyzer and are released straight away. Nothing is written, nothing is logged.</p><span class="how">enforced: tests assert no file I/O in the audio path</span></div>
+    <div class="promise"><h3>The mic is open only while you hold</h3><p>Only two states open the mic, and every exit path closes it, including watchdogs for a lost key-up.</p><span class="how">enforced: 1,000 random event sequences in a property test</span></div>
+    <div class="promise"><h3>No silent rewrites</h3><p>If the on-device model changes your words, you see a diff and accept it. Your literal transcript is always kept.</p><span class="how">enforced: tests that rejecting leaves the literal byte-identical</span></div>
+  </div>
+</section>
+
+<section id="risks" aria-labelledby="h-risks">
+  <div class="section-head">
+    <div class="eyebrow">06 · Weak points</div>
+    <h2 id="h-risks">Failure modes found in review, and the fix for each</h2>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col">Failure mode</th><th scope="col">Design response</th><th scope="col">Verified by</th></tr></thead>
+      <tbody id="risk-rows">
+        <tr><td>⌘V sent while Option is still held</td><td>Wait for modifier release, post ⌘V with explicit flags from a private event source, and use the layout-resolved “v” key.</td><td>A2 tests · QA</td></tr>
+        <tr><td>Accepting the preview pastes into Speak itself</td><td>Close the panel, re-activate the original app by PID, and confirm it's frontmost before checking delivery.</td><td>A2/A3 tests · P2 gate</td></tr>
+        <tr><td>Clipboard restored before a slow app reads it</td><td>A longer delay for known slow apps. Restore only if the clipboard is unchanged, and skip it for lazy data types.</td><td>A2 tests · QA</td></tr>
+        <tr><td>First word lost while the key debounces</td><td>The mic opens at press. Audio is discarded if the press is a tap or a chord.</td><td>A1 tests</td></tr>
+        <tr><td>Key-up event lost, mic stays open</td><td>A stuck-key watchdog plus a key-state check when the tap is re-enabled.</td><td>A1 tests</td></tr>
+        <tr><td>Transcription stalls at release</td><td>A finalize watchdog falls back to the last partial text.</td><td>A1 tests</td></tr>
+        <tr><td>Two events race inside one transition</td><td>All inputs go through a single ordered queue into a synchronous reducer, which never awaits mid-transition.</td><td>A0 reducer table</td></tr>
+        <tr><td>Speech or model framework hangs</td><td>Every framework call has a watchdog: start, finalize, and rewrite. Repeated hangs prompt a restart.</td><td>A1 tests</td></tr>
+        <tr><td>Late result from a cancelled session</td><td>Every async result carries a session token. Mismatched tokens are dropped.</td><td>A1 property test</td></tr>
+        <tr><td>Rewrite answers or obeys the dictation</td><td>Angle brackets stripped, a single tagged output, and length and word-overlap checks. On any doubt, fall back to literal.</td><td>A3 injection fixtures</td></tr>
+        <tr><td>On-device model errors or slow first load</td><td>Prewarm at launch. Every model error maps to a literal fallback with a short note.</td><td>A3 tests</td></tr>
+        <tr><td>Dictionary “fixes” real words</td><td>Fuzzy matching applies only to words the spellchecker flags as misspelled.</td><td>Dictionary tests</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="plan" aria-labelledby="h-plan">
+  <div class="section-head">
+    <div class="eyebrow">07 · Build plan</div>
+    <h2 id="h-plan">Four phases, each ending in a hands-on check</h2>
+  </div>
+  <div class="phases">
+    <div class="phase"><span class="pn">P0</span><h3>Skeleton</h3><ul><li>SwiftPM package, two targets</li><li>Stable self-signed signing</li><li>Bundle, test, and privacy scripts</li></ul><div class="gate">gate: icon appears, signature stable</div></div>
+    <div class="phase daily"><span class="pn">P1</span><h3>Dictation</h3><ul><li>Hotkey, mic, on-device speech</li><li>Delivery checks and paste</li><li>HUD and permission setup</li></ul><div class="gate">gate: dictate into 4 apps + a password field</div></div>
+    <div class="phase"><span class="pn">P2</span><h3>Dictionary &amp; rewrite</h3><ul><li>Personal dictionary</li><li>Concise and Polished modes</li><li>Diff preview, undo</li></ul><div class="gate">gate: name fixed, rewrite rejected</div></div>
+    <div class="phase"><span class="pn">P3</span><h3>Polish</h3><ul><li>History, launch at login</li><li>Icon, CI, README, demo GIF</li><li>Full QA checklist</li></ul><div class="gate">gate: QA ticked, CI green</div></div>
+  </div>
+</section>
+
+<footer><span>Speak · architecture v1 · 2026-10-15</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var NODES = ['n-hud','n-key','n-tap','n-mic','n-stt','n-clean','n-rewrite','n-preview','n-rules','n-paste','n-copy','n-ctrl'];
+  var EDGES = ['e-key-tap','e-tap-mic','e-mic-stt','e-stt-hud','e-stt-clean','e-clean-rewrite','e-rewrite-preview','e-preview-rules','e-bypass','e-rules-paste','e-rules-copy'];
+  var STATES = ['idle','arming','listening','finalizing','rewriting','awaitingAcceptance','delivering','done','cancelled'];
+  var SKIP = {
+    literal: ['n-rewrite','n-preview','n-copy','e-clean-rewrite','e-rewrite-preview','e-preview-rules','e-rules-copy'],
+    polished: ['n-copy','e-bypass','e-rules-copy'],
+    denied: ['n-rewrite','n-preview','n-paste','e-clean-rewrite','e-rewrite-preview','e-preview-rules','e-rules-paste']
+  };
+  var capture = [
+    { s:'arming', t:'0 ms', mic:true, n:['n-key','n-tap','n-mic'], e:['e-key-tap','e-tap-mic'], note:'Key down. The mic opens immediately so your first word is not lost.' },
+    { s:'listening', t:'200 ms', mic:true, n:['n-mic','n-stt','n-hud'], e:['e-mic-stt','e-stt-hud'], note:'Held past 200 ms, so this is a real session. Audio streams to the analyzer and live text appears in the HUD.' },
+    { s:'finalizing', t:'release', n:['n-stt'], e:[], note:'Key up. The mic closes and the analyzer finalizes the transcript.' },
+    { s:'finalizing', t:'+0.3 s', n:['n-clean'], e:['e-stt-clean'], note:'Literal cleanup and dictionary fixes. This literal text is kept no matter what happens next.' }
+  ];
+  var SCRIPTS = {
+    literal: capture.concat([
+      { s:'delivering', t:'+0.31 s', n:['n-rules'], e:['e-bypass'], note:'Literal mode skips the rewrite. The delivery checks run: permission, secure field, same app, same field, modifiers released.' },
+      { s:'done', t:'+0.4 s', n:['n-paste'], e:['e-rules-paste'], note:'⌘V into your app, then your clipboard is restored. Target: about 1.5 s or less from release.' }
+    ]),
+    polished: capture.concat([
+      { s:'rewriting', t:'+1.3 s', n:['n-rewrite'], e:['e-clean-rewrite'], note:'The on-device model removes filler and fixes grammar. The output must pass the injection guard or it falls back to literal.' },
+      { s:'awaitingAcceptance', t:'your call', n:['n-preview'], e:['e-rewrite-preview'], note:'The words changed, so a diff appears. Enter accepts, Option-Enter inserts the literal, Esc cancels.' },
+      { s:'delivering', t:'accepted', n:['n-rules'], e:['e-preview-rules'], note:'Focus returns to your original app, then the delivery checks run.' },
+      { s:'done', t:'+0.1 s', n:['n-paste'], e:['e-rules-paste'], note:'Pasted at your cursor, and your clipboard is restored.' }
+    ]),
+    denied: capture.concat([
+      { s:'delivering', t:'+0.31 s', n:['n-rules'], e:['e-bypass'], note:'Check 1 fails: Accessibility is not granted, so Speak is not allowed to paste.' },
+      { s:'done', t:'+0.32 s', n:['n-copy'], e:['e-rules-copy'], copy:true, note:'“Accessibility not granted — copied to clipboard.” The HUD offers Open Settings. Nothing is lost.' }
+    ])
+  };
+
+  var scenario = 'literal', timer = null, playing = false;
+  var $ = function (id) { return document.getElementById(id); };
+  function each(ids, fn) { ids.forEach(function (id) { var el = $(id); if (el) fn(el); }); }
+  function cls(el, name, on) { el.classList[on ? 'add' : 'remove'](name); }
+
+  function reset() {
+    each(NODES, function (el) { ['active','mic','done','copy','dim'].forEach(function (c) { cls(el, c, false); }); });
+    each(EDGES, function (el) { cls(el, 'active', false); cls(el, 'dim', false); });
+    each(SKIP[scenario], function (el) { cls(el, 'dim', true); });
+    setState('idle', false);
+    $('ro-time').textContent = 't = 0';
+    $('ro-note').textContent = scenario === 'denied'
+      ? 'Scenario: Accessibility is turned off. Watch where the text ends up.'
+      : scenario === 'polished' ? 'Scenario: Polished mode. The on-device model rewrites, and you approve the diff.'
+      : 'Scenario: Literal mode, the default. Fastest path, no AI rewrite.';
+  }
+  function setState(name, mic) {
+    STATES.forEach(function (s) { var el = $('s-' + s); if (el) cls(el, 'active', s === name); });
+    var chip = $('ro-state');
+    chip.textContent = name === 'done' ? (scenario === 'denied' ? 'copied' : 'inserted') : name;
+    cls(chip, 'mic', !!mic);
+  }
+  function apply(step) {
+    each(NODES, function (el) { if (el.classList.contains('active') || el.classList.contains('mic')) { cls(el, 'active', false); cls(el, 'mic', false); cls(el, 'done', true); } });
+    each(EDGES, function (el) { cls(el, 'active', false); });
+    each(step.n, function (el) { cls(el, 'done', false); cls(el, step.mic && el.id !== 'n-stt' && el.id !== 'n-hud' ? 'mic' : (step.copy ? 'copy' : 'active'), true); });
+    each(step.e, function (el) { cls(el, 'active', true); });
+    setState(step.s, step.mic);
+    $('ro-time').textContent = 't = ' + step.t;
+    $('ro-note').textContent = step.note;
+  }
+  function stop() { clearTimeout(timer); playing = false; $('play-label').textContent = 'Play dictation'; }
+  function play() {
+    if (playing) { stop(); reset(); return; }
+    reset();
+    var steps = SCRIPTS[scenario];
+    if (reduce) { apply(steps[steps.length - 1]); return; }
+    playing = true; $('play-label').textContent = 'Stop';
+    var i = 0;
+    (function next() {
+      apply(steps[i]); i++;
+      if (i < steps.length) { timer = setTimeout(next, 1600); }
+      else { timer = setTimeout(function () { stop(); }, 400); }
+    })();
+  }
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      stop(); scenario = b.getAttribute('data-sc');
+      document.querySelectorAll('.seg button').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      reset();
+    });
+  });
+  $('play').addEventListener('click', play);
+  reset();
+})();
+</script>
+</body>
+</html>
