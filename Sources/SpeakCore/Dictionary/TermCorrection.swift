@@ -37,13 +37,16 @@ public func correctTerms(_ text: String, terms: [String], isMisspelled: (String)
         }
     }
 
+    // Lowercased once up front: this loop runs words × terms times.
     let fuzzyTerms = terms.filter { $0.count >= 5 && !$0.contains(where: \.isWhitespace) }
+        .map { (term: $0, chars: Array($0.lowercased())) }
     if !fuzzyTerms.isEmpty, let words = try? NSRegularExpression(pattern: "[\\p{L}\\p{N}]+") {
         let exact = edits.map(\.range)
         for match in words.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             if exact.contains(where: { NSIntersectionRange($0, match.range).length > 0 }) { continue }
             let word = ns.substring(with: match.range)
-            let near = fuzzyTerms.filter { isOneEditAway(word, $0) }
+            let chars = Array(word.lowercased())
+            let near = fuzzyTerms.filter { isOneEditAway(chars, $0.chars) }.map(\.term)
             // Two terms equally close is a guess; leave the word alone.
             guard near.count == 1, isMisspelled(word) else { continue }
             edits.append((match.range, near[0]))
@@ -60,7 +63,10 @@ public func correctTerms(_ text: String, terms: [String], isMisspelled: (String)
 /// True when the words differ (ignoring case) by exactly one insertion,
 /// deletion, or substitution.
 func isOneEditAway(_ a: String, _ b: String) -> Bool {
-    let x = Array(a.lowercased()), y = Array(b.lowercased())
+    isOneEditAway(Array(a.lowercased()), Array(b.lowercased()))
+}
+
+private func isOneEditAway(_ x: [Character], _ y: [Character]) -> Bool {
     guard abs(x.count - y.count) <= 1, x != y else { return false }
     var i = 0, j = 0, edits = 0
     while i < x.count, j < y.count {
