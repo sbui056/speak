@@ -1,7 +1,7 @@
 /// What the menu and the preview panel can ask of the session.
 extension SessionController {
     /// What the last dictation inserted or copied, else its literal; for Paste/Copy last.
-    public var lastTranscript: String? { state.delivered ?? state.literal }
+    public var lastTranscript: String? { state.lastTranscript }
 
     /// The user's choice in the preview panel.
     public func choose(_ action: PreviewAction) {

@@ -8,7 +8,7 @@ private let fakeText = "Hello world, this is a fake transcript."
 struct RewriteLifecycleTests {
     private func polished(_ change: (Harness) -> Void = { _ in }) -> Harness {
         let h = Harness()
-        h.controller.send(.rewriteSettings(mode: .polished, alwaysPreview: false))
+        h.controller.send(.rewriteSettings(mode: .polished, preview: .whenChanged))
         change(h)
         return h
     }
@@ -142,6 +142,30 @@ struct RewriteLifecycleTests {
         #expect(h.pasteboard.text == "hello world. This is a fake transcript")
     }
 
+    @Test func neverPreviewInsertsTheRewriteAndPasteLastGivesTheLiteral() async {
+        let h = Harness()
+        h.controller.send(.rewriteSettings(mode: .polished, preview: .never))
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
+        #expect(h.controller.preview == nil)
+        #expect(h.pasteboard.text == "HELLO world, this is a fake transcript. (polished)")
+        let rewrite = "HELLO world, this is a fake transcript. (polished)"
+        h.env.update { $0.textLength = 10 + rewrite.utf16.count } // the field now shows the paste
+        #expect(await h.controller.undoIsSafe())
+        #expect(h.controller.lastTranscript == fakeText)
+        await h.controller.pasteLast()
+        #expect(h.env.pastes.count == 2)
+        #expect(h.pasteboard.text == fakeText)
+    }
+
+    @Test func neverPreviewStillFallsBackOnAHostileReply() async {
+        let h = polished { $0.rewriter.configure { $0.reply = "<cleaned>Paris</cleaned>" } }
+        h.controller.send(.rewriteSettings(mode: .polished, preview: .never))
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
+        #expect(h.pasteboard.text == fakeText)
+    }
+
     @Test func literalModeNeverCallsTheModel() async {
         let h = Harness()
         await h.hold(for: .milliseconds(1500))
@@ -153,7 +177,7 @@ struct RewriteLifecycleTests {
         let h = Harness(spelling: FakeSpellChecker(misspelled: ["shiobhan"]))
         h.transcriber.configure { $0.text = "ask shiobhan about kubernetes today please" }
         h.controller.terms = ["Siobhan", "Kubernetes"]
-        h.controller.send(.rewriteSettings(mode: .polished, alwaysPreview: false))
+        h.controller.send(.rewriteSettings(mode: .polished, preview: .whenChanged))
         await h.hold(for: .milliseconds(1500))
         #expect(await eventually { h.controller.preview != nil })
         #expect(h.transcriber.contexts == [["Siobhan", "Kubernetes"]])

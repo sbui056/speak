@@ -88,6 +88,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             }
             modes.addItem(entry)
         }
+        modes.addItem(.separator())
+        modes.addItem(previewItem(enabled: reason == nil))
         if let reason {
             modes.addItem(.separator())
             let why = NSMenuItem(title: reason, action: nil, keyEquivalent: "")
@@ -96,6 +98,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         mode.submenu = modes
         return mode
+    }
+
+    private func previewItem(enabled: Bool) -> NSMenuItem {
+        let preview = NSMenuItem(title: "Show preview", action: nil, keyEquivalent: "")
+        let choices = NSMenu()
+        for policy in PreviewPolicy.allCases {
+            let entry = item(policy.title, #selector(previewClicked(_:)))
+            entry.representedObject = policy.rawValue
+            entry.state = app.previewPolicy == policy ? .on : .off
+            entry.isEnabled = enabled
+            choices.addItem(entry)
+        }
+        preview.submenu = choices
+        preview.isEnabled = enabled
+        return preview
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
@@ -123,6 +140,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func modeClicked(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let mode = RewriteMode(rawValue: raw) else { return }
         app.mode = mode
+    }
+
+    @objc private func previewClicked(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let policy = PreviewPolicy(rawValue: raw) else { return }
+        app.previewPolicy = policy
     }
 
     @objc private func dictionaryClicked() { openDictionary() }

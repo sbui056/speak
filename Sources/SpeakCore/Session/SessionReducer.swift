@@ -45,9 +45,9 @@ struct Reducer {
         case .timer(_, let kind): timer(kind)
         case .delivered(_, let outcome): delivered(outcome)
 
-        case .rewriteSettings(let mode, let alwaysPreview):
+        case .rewriteSettings(let mode, let preview):
             state.mode = mode
-            state.alwaysPreview = alwaysPreview
+            state.previewPolicy = preview
         case .modelStatus(let status): state.model = status
         case .micPermission(let granted): state.micGranted = granted
         case .systemSleep: shutdown()

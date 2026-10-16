@@ -90,9 +90,11 @@ struct SettingsView: View {
                     Text(available ? "Available" : "Unavailable").foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
-                Toggle("Always preview rewrites", isOn: $app.alwaysPreview)
-                Text("Rewrites that change your words are always previewed. Turn this on to also preview "
-                     + "punctuation and capitalization fixes.")
+                Picker("Show preview", selection: $app.previewPolicy) {
+                    ForEach(PreviewPolicy.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Text("Never: rewrites are typed straight in. Use Undo insert or Paste last transcript "
+                     + "to get your original words.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -93,7 +93,7 @@ public enum SessionEvent: Equatable, Sendable {
     case delivered(SessionID, DeliveryOutcome)
 
     // Environment
-    case rewriteSettings(mode: RewriteMode, alwaysPreview: Bool)
+    case rewriteSettings(mode: RewriteMode, preview: PreviewPolicy)
     case modelStatus(SpeechModelStatus)
     case micPermission(granted: Bool)
     case systemSleep

@@ -26,10 +26,10 @@ final class AppModel {
         }
     }
 
-    /// Show the preview even when only casing or punctuation changed.
-    var alwaysPreview: Bool {
+    /// When a rewrite waits in the preview panel.
+    var previewPolicy: PreviewPolicy {
         didSet {
-            UserDefaults.standard.set(alwaysPreview, forKey: Keys.alwaysPreview)
+            UserDefaults.standard.set(previewPolicy.rawValue, forKey: Keys.previewPolicy)
             sendRewriteSettings()
         }
     }
@@ -65,6 +65,8 @@ final class AppModel {
         static let hotkey = "hotkey"
         static let locale = "language"
         static let mode = "mode"
+        static let previewPolicy = "previewPolicy"
+        /// The P2 bool that `previewPolicy` replaces; migrated once, then removed.
         static let alwaysPreview = "alwaysPreview"
     }
 
@@ -74,7 +76,11 @@ final class AppModel {
         hotkey = defaults.string(forKey: Keys.hotkey).flatMap(HotkeyChoice.init(rawValue:)) ?? .rightOption
         locale = savedLocale
         mode = defaults.string(forKey: Keys.mode).flatMap(RewriteMode.init(rawValue:)) ?? .literal
-        alwaysPreview = defaults.bool(forKey: Keys.alwaysPreview)
+        let policy = PreviewPolicy.stored(defaults.string(forKey: Keys.previewPolicy),
+                                          legacyAlwaysPreview: defaults.bool(forKey: Keys.alwaysPreview))
+        previewPolicy = policy
+        defaults.set(policy.rawValue, forKey: Keys.previewPolicy)
+        defaults.removeObject(forKey: Keys.alwaysPreview)
         isFake = environment["SPEAK_FAKE"] == "1"
 
         let clock = ContinuousClock()
@@ -174,7 +180,7 @@ final class AppModel {
     /// The session uses Literal while rewrites are unavailable, whatever was chosen.
     private func sendRewriteSettings() {
         let effective = rewriteAvailability == .available ? mode : .literal
-        controller.send(.rewriteSettings(mode: effective, alwaysPreview: alwaysPreview))
+        controller.send(.rewriteSettings(mode: effective, preview: previewPolicy))
     }
 
     private func prewarm() {

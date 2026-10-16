@@ -29,7 +29,9 @@ public struct SessionState: Equatable, Sendable {
     /// What was actually inserted or copied: the literal, the accepted rewrite, or an edit.
     public var delivered: String?
     public var mode: RewriteMode = .literal
-    public var alwaysPreview = false
+    public var previewPolicy: PreviewPolicy = .whenChanged
+    /// The last delivery was a rewrite with changed words that skipped the preview (Show preview = Never).
+    public var autoInsertedRewrite = false
     public var model: SpeechModelStatus = .installed
     public var micGranted = true
     /// Set on quit, so a press during shutdown can't open the mic again.
@@ -38,6 +40,9 @@ public struct SessionState: Equatable, Sendable {
     public var consecutiveAbandons = 0
 
     public init() {}
+
+    /// What Paste/Copy last use: what went in, except a rewrite the user never saw, where it's their own words.
+    public var lastTranscript: String? { autoInsertedRewrite ? literal : delivered ?? literal }
 
     /// Clears per-session values and returns to idle.
     mutating func resetSession() {

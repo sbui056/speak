@@ -299,7 +299,7 @@ struct ReducerTests {
         case 21: return .rewritten(id, rng.next(upTo: 3) == 0 ? nil : "One two three four, five.")
         case 22: return .rewritten(id, "Totally different words here")
         case 23: return .preview(id, actions[rng.next(upTo: actions.count)])
-        case 24: return .rewriteSettings(mode: RewriteMode.allCases[rng.next(upTo: 3)], alwaysPreview: rng.next(upTo: 2) == 0)
+        case 24: return .rewriteSettings(mode: RewriteMode.allCases[rng.next(upTo: 3)], preview: PreviewPolicy.allCases[rng.next(upTo: 3)])
         default: return .delivered(id, .copied(.noField))
         }
     }

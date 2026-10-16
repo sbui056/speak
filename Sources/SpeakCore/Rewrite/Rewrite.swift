@@ -15,6 +15,29 @@ public enum RewriteMode: String, CaseIterable, Sendable {
     }
 }
 
+/// When a rewrite waits in the preview panel instead of going straight in.
+public enum PreviewPolicy: String, CaseIterable, Sendable {
+    /// Only when the words changed, not just casing or punctuation (the default).
+    case whenChanged
+    case always
+    /// Rewrites that pass the injection guard insert without a preview (opt-in).
+    case never
+
+    public var title: String {
+        switch self {
+        case .whenChanged: "When words change"
+        case .always: "Always"
+        case .never: "Never — insert automatically"
+        }
+    }
+
+    /// The saved choice, or the P2 "Always preview" toggle it replaces.
+    public static func stored(_ rawValue: String?, legacyAlwaysPreview: Bool) -> PreviewPolicy {
+        if let rawValue { return PreviewPolicy(rawValue: rawValue) ?? .whenChanged }
+        return legacyAlwaysPreview ? .always : .whenChanged
+    }
+}
+
 /// Why rewrites are off, shown next to the disabled modes.
 public enum RewriteAvailability: Equatable, Sendable {
     case available

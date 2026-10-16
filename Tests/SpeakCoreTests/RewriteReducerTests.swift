@@ -15,8 +15,9 @@ private let literal = "Um so I think we should move the meeting to Thursday"
 private let rewrite = "I think we should move the meeting to Thursday."
 
 /// A session in `mode` that has reached the literal.
-private func session(_ mode: RewriteMode, literal text: String = literal, alwaysPreview: Bool = false) -> [SessionEvent] {
-    [.rewriteSettings(mode: mode, alwaysPreview: alwaysPreview), .pressed(at: ms(0)), .timer(s1, .hold),
+private func session(_ mode: RewriteMode, literal text: String = literal,
+                     preview: PreviewPolicy = .whenChanged) -> [SessionEvent] {
+    [.rewriteSettings(mode: mode, preview: preview), .pressed(at: ms(0)), .timer(s1, .hold),
      .audioPeak(s1, dBFS: -20), .released(at: ms(1500)), .finalized(s1, text), .literalReady(s1, text)]
 }
 
@@ -32,16 +33,16 @@ struct RewriteReducerTests {
     }
 
     @Test func listeningInARewriteModePrewarms() {
-        let (_, effects) = run([.rewriteSettings(mode: .concise, alwaysPreview: false), .pressed(at: ms(0)), .timer(s1, .hold)])
+        let (_, effects) = run([.rewriteSettings(mode: .concise, preview: .whenChanged), .pressed(at: ms(0)), .timer(s1, .hold)])
         #expect(effects.last == .prewarmRewriter(.concise))
         let (_, literalEffects) = run([.pressed(at: ms(0)), .timer(s1, .hold)])
         #expect(!literalEffects.contains(.prewarmRewriter(.literal)))
     }
 
     @Test func modeIsTakenAtPress() {
-        let events: [SessionEvent] = [.rewriteSettings(mode: .polished, alwaysPreview: false), .pressed(at: ms(0)),
+        let events: [SessionEvent] = [.rewriteSettings(mode: .polished, preview: .whenChanged), .pressed(at: ms(0)),
                                       .timer(s1, .hold), .audioPeak(s1, dBFS: -20),
-                                      .rewriteSettings(mode: .literal, alwaysPreview: false),
+                                      .rewriteSettings(mode: .literal, preview: .whenChanged),
                                       .released(at: ms(1500)), .finalized(s1, literal), .literalReady(s1, literal)]
         #expect(run(events).0.phase == .rewriting)
     }
@@ -60,9 +61,50 @@ struct RewriteReducerTests {
     }
 
     @Test func alwaysPreviewShowsEvenUnchangedWording() {
-        let (state, _) = run(session(.polished, literal: "move the meeting to thursday", alwaysPreview: true) +
+        let (state, _) = run(session(.polished, literal: "move the meeting to thursday", preview: .always) +
                              [.rewritten(s1, "Move the meeting to Thursday.")])
         #expect(state.phase == .awaitingAcceptance)
+    }
+
+    @Test func neverPreviewDeliversChangedWordingDirectly() {
+        let (state, effects) = run(session(.polished, preview: .never) + [.rewritten(s1, rewrite)])
+        #expect(state.phase == .delivering)
+        #expect(effects == [.deliver(s1, rewrite), .startTimer(s1, .deliver, after: Constants.deliver)])
+        #expect(state.delivered == rewrite)
+    }
+
+    @Test func neverPreviewStillFallsBackOnARejectedReply() {
+        let (state, effects) = run(session(.polished, preview: .never) + [.rewritten(s1, nil)])
+        #expect(effects.first == .deliver(s1, literal))
+        #expect(!state.autoInsertedRewrite)
+    }
+
+    @Test func pasteLastIsTheLiteralAfterAnAutoInsertedRewrite() {
+        let (state, _) = run(session(.polished, preview: .never) + [.rewritten(s1, rewrite), .delivered(s1, .inserted)])
+        #expect(state.lastTranscript == literal)
+        // Casing-only rewrites aren't flagged: the words are the user's own.
+        let (casing, _) = run(session(.polished, literal: "move the meeting to thursday", preview: .never) +
+                              [.rewritten(s1, "Move the meeting to Thursday."), .delivered(s1, .inserted)])
+        #expect(casing.lastTranscript == "Move the meeting to Thursday.")
+        // An accepted preview keeps today's behavior.
+        let (accepted, _) = run(previewing + [.preview(s1, .insert(rewrite)), .delivered(s1, .inserted)])
+        #expect(accepted.lastTranscript == rewrite)
+    }
+
+    @Test func nextSessionClearsTheAutoInsertFlag() {
+        let (first, _) = run(session(.polished, preview: .never) + [.rewritten(s1, rewrite), .delivered(s1, .inserted)])
+        let s2 = SessionID(2)
+        let (next, _) = run([.pressed(at: ms(9000)), .timer(s2, .hold), .audioPeak(s2, dBFS: -20),
+                             .released(at: ms(11000)), .finalized(s2, "x"), .literalReady(s2, "Next one")], from: first)
+        #expect(!next.autoInsertedRewrite)
+        #expect(next.lastTranscript == "Next one")
+    }
+
+    @Test func storedPreviewPolicyMigratesTheOldToggle() {
+        #expect(PreviewPolicy.stored(nil, legacyAlwaysPreview: true) == .always)
+        #expect(PreviewPolicy.stored(nil, legacyAlwaysPreview: false) == .whenChanged)
+        #expect(PreviewPolicy.stored("never", legacyAlwaysPreview: true) == .never)
+        #expect(PreviewPolicy.stored("bogus", legacyAlwaysPreview: false) == .whenChanged)
     }
 
     @Test func acceptDeliversTheRewriteAfterHandoff() {
@@ -175,7 +217,7 @@ struct RewriteReducerTests {
     }
 
     @Test func slowTranscriptionSkipsTheRewrite() {
-        let events: [SessionEvent] = [.rewriteSettings(mode: .polished, alwaysPreview: false), .pressed(at: ms(0)),
+        let events: [SessionEvent] = [.rewriteSettings(mode: .polished, preview: .whenChanged), .pressed(at: ms(0)),
                                       .timer(s1, .hold), .audioPeak(s1, dBFS: -20), .released(at: ms(1500)),
                                       .partial(s1, literal), .timer(s1, .finalize), .literalReady(s1, literal)]
         #expect(run(events).0.phase == .delivering)

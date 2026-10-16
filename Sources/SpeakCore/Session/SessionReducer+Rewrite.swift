@@ -7,6 +7,7 @@ extension Reducer {
         guard !literal.isEmpty else { return finish(.result(.empty)) }
         state.literal = literal
         state.delivered = nil
+        state.autoInsertedRewrite = false
         let mode = state.sessionMode
         // Partial text after a slow transcriber goes in as is, with its own note.
         if mode == .literal || state.usedPartialFallback { return deliver(literal) }
@@ -24,8 +25,16 @@ extension Reducer {
     mutating func rewritten(_ text: String?) {
         guard state.phase == .rewriting, let id = state.current, let literal = state.literal else { return }
         guard let text else { return fallBackToLiteral() }
-        // No silent rewrites: changed wording waits for the user.
-        guard wordingChanged(literal, text) || state.alwaysPreview else { return deliver(text) }
+        let changed = wordingChanged(literal, text)
+        switch state.previewPolicy {
+        // No silent rewrites by default: changed wording waits for the user.
+        case .whenChanged where !changed: return deliver(text)
+        case .never:
+            // Opted out: Paste last then gives the user's own words.
+            state.autoInsertedRewrite = changed
+            return deliver(text)
+        case .whenChanged, .always: break
+        }
         state.phase = .awaitingAcceptance
         emit(.hideHUD, .showPreview(id, literal: literal, rewrite: text))
     }
