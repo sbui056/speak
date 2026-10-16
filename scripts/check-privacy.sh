@@ -1,6 +1,6 @@
 #!/bin/sh
 # Fails if the code could send data off the machine, log transcript text publicly,
-# or if the core module reaches the system directly instead of through protocols.
+# write audio to disk, or if the core module reaches the system directly instead of through protocols.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -26,6 +26,11 @@ fi
 # 4. SpeakCore stays free of UI and system frameworks.
 if [ -d Sources/SpeakCore ] && hits=$(grep -rnE '^[[:space:]]*(@preconcurrency[[:space:]]+)?import[[:space:]]+(AppKit|SwiftUI|AVFoundation|AVFAudio|Speech|FoundationModels|Cocoa)\b' Sources/SpeakCore); then
   report "SpeakCore imports a system UI/media framework:"; echo "$hits" >&2
+fi
+
+# 5. Audio is never written to disk: the mic and speech adapters do no file I/O.
+if hits=$(grep -nE 'AVAudioFile|AVAudioRecorder|FileManager|FileHandle|write\(to|\.write\(|fopen|createFile' Sources/Speak/EngineAudioSource.swift Sources/Speak/SpeechEngine.swift); then
+  report "file I/O in the audio path:"; echo "$hits" >&2
 fi
 
 if [ "$fail" -ne 0 ]; then exit 1; fi
