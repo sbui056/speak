@@ -48,3 +48,18 @@ struct HUDHoverTests {
         #expect(hud.content == nil)
     }
 }
+
+@MainActor
+struct HUDCallbackTests {
+    @Test func everyChangeIsReported() async {
+        let clock = TestClock()
+        let hud = HUDModel(clock: clock)
+        var seen: [HUDContent?] = []
+        hud.onContentChange = { seen.append($0) }
+        hud.show(.listening)
+        hud.show(.processing)
+        hud.show(.result(.inserted))
+        await clock.advance(by: Constants.hudOK + .milliseconds(20))
+        #expect(seen == [.listening, .processing, .result(.inserted), nil])
+    }
+}

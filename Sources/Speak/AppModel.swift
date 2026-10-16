@@ -37,6 +37,8 @@ final class AppModel {
     @ObservationIgnored private let modelStore: (any SpeechModelStore)?
     @ObservationIgnored private var hotkeyTask: Task<Void, Never>?
     @ObservationIgnored private var installing = false
+    /// Called when anything the menu-bar icon depends on changes.
+    @ObservationIgnored var onIconInputsChange: (() -> Void)?
 
     private enum Keys {
         static let hotkey = "hotkey"
@@ -78,11 +80,13 @@ final class AppModel {
 
     /// Starts everything. Returns whether Settings should open (a permission is missing).
     func start() async -> Bool {
-        controller.onTransition = { from, to, id in
+        controller.onTransition = { [weak self] from, to, id in
+            self?.onIconInputsChange?()
             Log.session.info("\(String(describing: from), privacy: .public) → \(String(describing: to), privacy: .public) \(id?.description ?? "-", privacy: .public)")
         }
         let controller = self.controller
-        permissions.onChange = { permission, granted in
+        permissions.onChange = { [weak self] permission, granted in
+            self?.onIconInputsChange?()
             Log.perm.info("\(String(describing: permission), privacy: .public) granted=\(granted, privacy: .public)")
             if permission == .microphone { controller.send(.micPermission(granted: granted)) }
         }
@@ -147,6 +151,7 @@ final class AppModel {
         if case .downloading = status, model == .installed { return }
         model = status
         controller.send(.modelStatus(status))
+        onIconInputsChange?()
     }
 
     private func loadLocales() async {

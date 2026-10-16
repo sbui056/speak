@@ -5,7 +5,11 @@ import Observation
 @MainActor
 @Observable
 public final class HUDModel {
-    public private(set) var content: HUDContent?
+    public private(set) var content: HUDContent? {
+        didSet { if content != oldValue { onContentChange?(content) } }
+    }
+    /// Called on every change, for the window that shows or hides the HUD.
+    @ObservationIgnored public var onContentChange: ((HUDContent?) -> Void)?
 
     @ObservationIgnored private let clock: any Clock<Duration>
     @ObservationIgnored private var hideTask: Task<Void, Never>?

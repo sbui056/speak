@@ -24,16 +24,9 @@ final class HUDPanelController {
         let host = NSHostingView(rootView: view)
         host.sizingOptions = [.intrinsicContentSize]
         panel.contentView = host
-        observe()
-    }
-
-    /// Shows or hides the panel whenever the HUD content changes.
-    private func observe() {
-        withObservationTracking {
-            update(controller.hud.content)
-        } onChange: { [weak self] in
-            Task { @MainActor in self?.observe() }
-        }
+        // A direct callback rather than observation tracking: a re-subscription
+        // chain that breaks once would leave the HUD hidden for good.
+        controller.hud.onContentChange = { [weak self] in self?.update($0) }
     }
 
     private func update(_ content: HUDContent?) {
@@ -41,8 +34,12 @@ final class HUDPanelController {
             panel.orderOut(nil)
             return
         }
-        if !panel.isVisible { position() }
+        let wasVisible = panel.isVisible
+        if !wasVisible { position() }
         panel.orderFrontRegardless()
+        if !wasVisible {
+            Log.session.info("hud shown visible=\(self.panel.isVisible, privacy: .public) activeSpace=\(self.panel.isOnActiveSpace, privacy: .public) occluded=\(!self.panel.occlusionState.contains(.visible), privacy: .public) y=\(Int(self.panel.frame.minY), privacy: .public)")
+        }
     }
 
     /// Bottom-center of the screen that has the pointer.

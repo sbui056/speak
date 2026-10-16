@@ -18,22 +18,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
-        observeIcon()
+        app.onIconInputsChange = { [weak self] in self?.updateIcon() }
+        updateIcon()
     }
 
-    private func observeIcon() {
-        withObservationTracking {
-            let icon = MenuIcon(phase: app.controller.state.phase, hasProblem: app.hasProblem)
-            if icon != shownIcon {
-                shownIcon = icon
-                let image = NSImage(systemSymbolName: icon.symbol, accessibilityDescription: "Speak")
-                image?.isTemplate = true
-                statusItem.button?.image = image
-                Log.session.info("menu icon \(icon.symbol, privacy: .public)")
-            }
-        } onChange: { [weak self] in
-            Task { @MainActor in self?.observeIcon() }
-        }
+    private func updateIcon() {
+        let icon = MenuIcon(phase: app.controller.state.phase, hasProblem: app.hasProblem)
+        guard icon != shownIcon else { return }
+        shownIcon = icon
+        let image = NSImage(systemSymbolName: icon.symbol, accessibilityDescription: "Speak")
+        image?.isTemplate = true
+        statusItem.button?.image = image
+        Log.session.info("menu icon \(icon.symbol, privacy: .public)")
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
