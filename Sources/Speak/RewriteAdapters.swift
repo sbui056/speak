@@ -24,7 +24,7 @@ final class FoundationRewriter: Rewriter {
         let started = ContinuousClock.now
         do {
             // Greedy: a cleanup should be repeatable, not creative.
-            let reply = try await session.respond(to: prompt.prompt, options: GenerationOptions(sampling: .greedy))
+            let reply = try await session.respond(to: prompt.prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: prompt.maxResponseTokens))
             Log.rewrite.info("rewrite replied in \(ContinuousClock.now - started, privacy: .public)")
             return reply.content
         } catch let error as LanguageModelSession.GenerationError {
