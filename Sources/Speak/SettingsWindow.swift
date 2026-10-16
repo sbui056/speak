@@ -13,11 +13,17 @@ final class SettingsWindowController {
             window.title = "Speak Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
+            // Without these, a menu-bar app's window opens on whichever Space it
+            // last lived on (or the desktop behind a full-screen app), not the
+            // one the user is looking at.
+            window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             window.center()
             self.window = window
         }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+        // Activation is cooperative and can be declined; still put the window on top.
+        window?.orderFrontRegardless()
     }
 }
 
