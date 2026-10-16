@@ -122,6 +122,9 @@ final class AppModel {
             Log.perm.info("\(String(describing: permission), privacy: .public) granted=\(granted, privacy: .public)")
             if permission == .microphone { controller.send(.micPermission(granted: granted)) }
         }
+        controller.onDelivered = { outcome in
+            Log.insert.info("delivery \(String(describing: outcome), privacy: .public)")
+        }
         controller.onRewriteRejected = { mode in
             Log.rewrite.info("rewrite rejected by the guard mode=\(mode.rawValue, privacy: .public)")
         }

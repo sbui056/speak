@@ -19,10 +19,13 @@ final class SystemDeliveryEnvironment: DeliveryEnvironment {
     }
 
     func focusedElement() async -> FocusedElement {
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, Self.axTimeout)
+        // Ask the frontmost app for its own focus. System-wide focus follows
+        // Speak's menu or preview panel while they're open, which would hide the
+        // user's text field from the delivery and undo checks.
+        let root = await frontmostPID().map(AXUIElementCreateApplication) ?? AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(root, Self.axTimeout)
         var value: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &value)
+        let error = AXUIElementCopyAttributeValue(root, kAXFocusedUIElementAttribute as CFString, &value)
         switch error {
         case .success:
             guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return .error }

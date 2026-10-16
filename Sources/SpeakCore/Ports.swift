@@ -102,6 +102,17 @@ public enum FocusedElement: Sendable {
     case error
 }
 
+extension FocusedElement {
+    /// The case name alone, safe to log.
+    public var kind: String {
+        switch self {
+        case .element: "element"
+        case .none: "none"
+        case .error: "error"
+        }
+    }
+}
+
 /// Where the user was when they pressed the hotkey.
 public struct PressContext: Sendable {
     /// Nil when Speak itself was frontmost.

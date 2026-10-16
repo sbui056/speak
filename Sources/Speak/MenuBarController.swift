@@ -57,7 +57,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         undo.isHidden = true
         menu.addItem(undo)
         let controller = app.controller
-        Task { undo.isHidden = !(await controller.undoIsSafe()) }
+        Task {
+            let safe = await controller.undoIsSafe()
+            undo.isHidden = !safe
+            let why = await controller.undoDiagnostics()
+            Log.insert.info("undo check safe=\(safe, privacy: .public) \(why, privacy: .public)")
+        }
         menu.addItem(.separator())
 
         menu.addItem(modeItem())

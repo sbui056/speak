@@ -22,6 +22,10 @@ extension SessionController {
         await deliverer.canUndo ? await deliverer.undoIsSafe() : false
     }
 
+    public func undoDiagnostics() async -> String {
+        await deliverer.undoDiagnostics()
+    }
+
     /// Sends ⌘Z for the last paste if that's still safe.
     @discardableResult
     public func undoLastInsert() async -> Bool {

@@ -20,6 +20,8 @@ public final class SessionController {
     @ObservationIgnored public var language = "en_US"
     /// Called when the preview opens or closes, for the panel that shows it.
     @ObservationIgnored public var onPreviewChange: ((PreviewContent?) -> Void)?
+    /// Called with every delivery result (pasted, or copied and why), for logging.
+    @ObservationIgnored public var onDelivered: ((DeliveryOutcome) -> Void)?
     /// Called when the model's reply failed validation, for logging. Never sees text.
     @ObservationIgnored public var onRewriteRejected: ((RewriteMode) -> Void)?
 
@@ -111,6 +113,7 @@ public final class SessionController {
         let before = state
         let (next, effects) = reduce(state, event)
         state = next
+        if case .delivered(let id, let outcome) = event, id == before.current { onDelivered?(outcome) }
         if before.phase != next.phase { onTransition?(before.phase, next.phase, before.current ?? next.current) }
         for effect in effects { perform(effect) }
     }

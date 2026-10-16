@@ -11,6 +11,8 @@ public actor Deliverer {
     private var tail: Task<Void, Never>?
     /// The last paste, undoable until it expires (C-UNDO) or is used.
     private var undo: (offer: UndoOffer, expiry: Task<Void, Never>)?
+    /// Why the last paste didn't get an undo offer, for logs.
+    public private(set) var lastUndoSkip: String?
 
     private struct PendingRestore {
         let snapshot: PasteboardSnapshot
@@ -65,6 +67,16 @@ public actor Deliverer {
     public func undoIsSafe() async -> Bool {
         guard let offer = undo?.offer else { return false }
         return undoAllowed(offer, now: await undoSnapshot(for: offer))
+    }
+
+    /// Why undo is or isn't offered, as numbers and flags only (for logs).
+    public func undoDiagnostics() async -> String {
+        guard let offer = undo?.offer else { return "offer=none skip=\(lastUndoSkip ?? "expired or used")" }
+        let now = await undoSnapshot(for: offer)
+        let expected = offer.expectedLength.map(String.init) ?? "nil"
+        let length = now.textLength.map(String.init) ?? "nil"
+        let same = now.sameElement.map(String.init) ?? "nil"
+        return "samePID=\(now.frontmostPID == offer.pid) sameElement=\(same) expectedLength=\(expected) length=\(length)"
     }
 
     /// Sends ⌘Z once if it's still safe. The offer is used up either way.
@@ -155,7 +167,9 @@ public actor Deliverer {
     private func recordUndo(for text: String, pid: Int32?, focus: FocusedElement) async {
         undo?.expiry.cancel()
         undo = nil
-        guard let pid, case .element(let element) = focus else { return }
+        lastUndoSkip = nil
+        guard let pid else { return lastUndoSkip = "no target app" }
+        guard case .element(let element) = focus else { return lastUndoSkip = "focus \(focus.kind)" }
         var expected: Int?
         if let length = await env.textLength(of: element) {
             // A paste replaces the selection.
