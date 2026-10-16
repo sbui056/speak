@@ -224,6 +224,23 @@ struct LifecycleTests {
         #expect(h.pasteboard.current.writes == [.normal])
     }
 
+    @Test func hungPasteIsRescuedByTheWatchdog() async {
+        let h = Harness()
+        h.env.holdPastes() // the target app never processes ⌘V
+        await h.hold(for: .milliseconds(1000))
+        #expect(await eventually { h.phase == .delivering })
+        let started = h.clock.elapsed
+        #expect(await h.clock.advance(until: { h.phase == .idle }))
+        #expect(h.clock.elapsed - started >= Constants.deliver - .milliseconds(150))
+        #expect(h.pasteboard.text == Self.fakeText)
+        #expect(h.pasteboard.current.writes == [.transient, .normal])
+        #expect(await eventually { h.hud == .result(.copied) })
+        // The next dictation still works.
+        h.env.update { $0.pastes = [] }
+        await h.hold(for: .milliseconds(1000))
+        #expect(await eventually { h.phase == .delivering })
+    }
+
     @Test func staleStopNeverClosesTheNextSessionsMic() async {
         let h = Harness()
         h.audio.configure { $0.gated = true }

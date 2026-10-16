@@ -37,6 +37,13 @@ public actor Deliverer {
         await serially { await $0.copyNow(text) }
     }
 
+    /// Saves text that would otherwise be lost (a hung paste, sleep, quit). Skips
+    /// the queue on purpose: a paste stuck in an unresponsive app must not hold it
+    /// up. A pending restore then sees the change count moved and leaves it alone.
+    public func rescue(_ text: String) async {
+        await pasteboard.write(text, as: .normal)
+    }
+
     /// Puts the user's clipboard back now instead of waiting, if it's still ours.
     public func restoreNow() async {
         await serially { await $0.restorePending() }

@@ -56,7 +56,7 @@ struct ReducerTests {
         Row(name: "partial updates the HUD", events: listening + [.partial(s1, "hello")], phase: .listening,
             effects: [.showHUD(.partial("hello"))]),
         Row(name: "final text is cleaned and delivered", events: finalizing + [.finalized(s1, "  hello   world ")],
-            phase: .delivering, effects: [.deliver(s1, "Hello world")]),
+            phase: .delivering, effects: [.deliver(s1, "Hello world"), .startTimer(s1, .deliver, after: Constants.deliver)]),
         Row(name: "empty transcript shows \"Didn't catch that\"", events: finalizing + [.finalized(s1, "  ")], phase: .idle,
             effects: [.showHUD(.result(.empty)), .endSession(s1)]),
         Row(name: "insert shows Inserted", events: finalizing + [.finalized(s1, "hi"), .delivered(s1, .inserted)],
@@ -77,7 +77,8 @@ struct ReducerTests {
             events: listening + [.transcriberActive(s1), .timer(s1, .sttStart)], phase: .listening, effects: []),
         Row(name: "slow finalize uses the last partial",
             events: finalizing + [.partial(s1, "hello there"), .timer(s1, .finalize)], phase: .delivering,
-            effects: [.stopAudio(s1), .cancelTranscriber(s1), .deliver(s1, "Hello there")]),
+            effects: [.stopAudio(s1), .cancelTranscriber(s1), .deliver(s1, "Hello there"),
+                      .startTimer(s1, .deliver, after: Constants.deliver)]),
         Row(name: "key poll re-arms while the key is down", events: listening + [.timer(s1, .keyPoll)], phase: .listening,
             effects: [.startTimer(s1, .keyPoll, after: keyPollInterval)]),
         Row(name: "key up briefly is tolerated",
@@ -106,6 +107,12 @@ struct ReducerTests {
         Row(name: "plain copy shows Copied as a result",
             events: finalizing + [.finalized(s1, "hi"), .delivered(s1, .copied(.copied))], phase: .idle,
             effects: [.showHUD(.result(.copied)), .endSession(s1)]),
+        Row(name: "hung delivery copies the literal and ends",
+            events: finalizing + [.finalized(s1, "stuck"), .timer(s1, .deliver)], phase: .idle,
+            effects: [.copyToPasteboard("Stuck"), .showHUD(.result(.copied)), .endSession(s1)]),
+        Row(name: "delivery timer after delivery is ignored",
+            events: finalizing + [.finalized(s1, "ok"), .delivered(s1, .inserted), .timer(s1, .deliver)],
+            phase: .idle, effects: []),
         Row(name: "quit while idle does nothing", events: [.quit], phase: .idle, effects: []),
         Row(name: "quit while finalizing cancels the transcriber", events: finalizing + [.quit], phase: .idle, effects: teardown),
         Row(name: "press after quit is ignored", events: [.quit, .pressed(at: ms(0))], phase: .idle, effects: []),
@@ -153,7 +160,7 @@ struct ReducerTests {
         #expect(effects.isEmpty)
         #expect(after.literal == "Slow")
         let (_, delivered) = reduce(after, .finalized(s2, "new text"))
-        #expect(delivered == [.deliver(s2, "New text")])
+        #expect(delivered == [.deliver(s2, "New text"), .startTimer(s2, .deliver, after: Constants.deliver)])
     }
 
     @Test func staleHoldTimerDoesNotStartListening() {
@@ -251,7 +258,7 @@ struct ReducerTests {
     }
 
     private func randomEvent(_ rng: inout SplitMix64, id: SessionID, at: KeyTime) -> SessionEvent {
-        let kinds: [TimerKind] = [.hold, .sttStart, .cap, .finalize, .keyPoll]
+        let kinds: [TimerKind] = [.hold, .sttStart, .cap, .finalize, .keyPoll, .deliver]
         switch rng.next(upTo: 22) {
         case 0, 1: return .pressed(at: at)
         case 2, 3: return .released(at: at)

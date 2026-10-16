@@ -146,7 +146,7 @@ private struct Reducer {
         guard !literal.isEmpty else { return finish(.result(.empty)) }
         state.literal = literal
         state.phase = .delivering
-        emit(.deliver(id, literal))
+        emit(.deliver(id, literal), .startTimer(id, .deliver, after: Constants.deliver))
     }
 
     mutating func audioFailed(_ failure: AudioFailure) {
@@ -175,6 +175,11 @@ private struct Reducer {
             emit(.startTimer(id, .keyPoll, after: keyPollInterval))
         case (.finalize, .finalizing):
             abandon(fallingBackTo: state.lastPartial)
+        case (.deliver, .delivering):
+            // Paste hung (an unresponsive app). Ending the session cancels it;
+            // the text still ends up somewhere the user can get it.
+            if let literal = state.literal { emit(.copyToPasteboard(literal)) }
+            finish(.result(.copied))
         default:
             break // A timer for a phase already left.
         }

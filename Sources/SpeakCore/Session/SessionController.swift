@@ -64,9 +64,12 @@ public final class SessionController {
         for await key in keys {
             switch key {
             case .pressed(let at):
-                // A new session puts the previous paste's clipboard back first.
-                await deliverer.restoreNow()
                 send(.pressed(at: at))
+                // A new session puts the previous paste's clipboard back early. Not
+                // awaited: a paste stuck in an unresponsive app must not delay the
+                // press, and the new session's own delivery queues behind this anyway.
+                let deliverer = self.deliverer
+                Task { await deliverer.restoreNow() }
             case .released(let at): send(.released(at: at))
             case .chord: send(.chord)
             case .cancel: send(.cancel)
@@ -168,7 +171,7 @@ public final class SessionController {
         case .copyToPasteboard(let text):
             let deliverer = self.deliverer
             let previous = copyTail
-            copyTail = Task { await previous?.value; await deliverer.copy(text) }
+            copyTail = Task { await previous?.value; await deliverer.rescue(text) }
         case .showHUD(let content):
             hud.show(content)
         case .hideHUD:

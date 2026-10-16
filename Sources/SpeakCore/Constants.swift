@@ -15,6 +15,8 @@ public enum Constants {
     public static let stuck: Duration = .milliseconds(300)
     /// Longest wait for modifiers to be released before posting ⌘V.
     public static let modWait: Duration = .milliseconds(500)
+    /// If delivery hasn't finished by then (a hung app), copy the text instead.
+    public static let deliver: Duration = .seconds(3)
     /// Longest wait for the original app to become frontmost again after the preview.
     public static let activate: Duration = .milliseconds(300)
     /// Delay before the pasteboard is restored after a paste.

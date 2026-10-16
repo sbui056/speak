@@ -38,6 +38,8 @@ public enum TimerKind: Equatable, Sendable {
     case sttStart
     case cap
     case finalize
+    /// Delivery watchdog: a hung app must not leave dictation stuck.
+    case deliver
     /// Periodic hotkey state poll that catches a lost key-up.
     case keyPoll
 }
@@ -105,7 +107,7 @@ public enum Effect: Equatable, Sendable {
     case startTimer(SessionID, TimerKind, after: Duration)
     /// Run the delivery rules and paste or copy.
     case deliver(SessionID, String)
-    /// A plain pasteboard copy, used when the app quits or sleeps mid-delivery.
+    /// A plain pasteboard copy that saves text a hung, interrupted, or cancelled delivery would lose.
     case copyToPasteboard(String)
     case showHUD(HUDContent)
     case hideHUD
