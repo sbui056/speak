@@ -9,15 +9,17 @@ final class Harness {
     let transcriber = FakeTranscriber()
     let env = FakeDeliveryEnvironment()
     let pasteboard = FakePasteboard()
+    let rewriter = FakeRewriter()
     let hotkey: FakeHotkeySource
     let controller: SessionController
 
-    init() {
+    init(spelling: FakeSpellChecker = FakeSpellChecker()) {
         let clock = self.clock
         hotkey = FakeHotkeySource(clock: { clock.elapsed })
         controller = SessionController(
             audio: audio, transcriber: transcriber,
             deliverer: Deliverer(env: env, pasteboard: pasteboard, clock: clock),
+            rewriter: rewriter, spelling: spelling,
             hotkey: hotkey, clock: clock)
         let controller = self.controller
         let keys = hotkey.start(.rightOption)

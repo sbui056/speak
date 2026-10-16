@@ -69,6 +69,41 @@ final class SystemDeliveryEnvironment: DeliveryEnvironment {
     }
 
     func postPaste(keyCode: UInt16) async {
+        postCommand(keyCode)
+    }
+
+    func postUndo(keyCode: UInt16) async {
+        postCommand(keyCode)
+    }
+
+    func activate(pid: Int32) async {
+        await MainActor.run { _ = NSRunningApplication(processIdentifier: pid)?.activate() }
+    }
+
+    func textLength(of element: ElementRef) async -> Int? {
+        guard let box = element.raw as? AXBox else { return nil }
+        var count: CFTypeRef?
+        if AXUIElementCopyAttributeValue(box.element, kAXNumberOfCharactersAttribute as CFString, &count) == .success,
+           let n = count as? Int { return n }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(box.element, kAXValueAttribute as CFString, &value) == .success,
+              let text = value as? String else { return nil }
+        return (text as NSString).length
+    }
+
+    func selectionLength(of element: ElementRef) async -> Int? {
+        guard let box = element.raw as? AXBox else { return nil }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(box.element, kAXSelectedTextRangeAttribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        var range = CFRange()
+        // Safe: the type ID was checked above.
+        guard AXValueGetValue(unsafeDowncast(value, to: AXValue.self), .cfRange, &range) else { return nil }
+        return range.length
+    }
+
+    /// Posts ⌘ plus `keyCode`.
+    private func postCommand(_ keyCode: UInt16) {
         // A private source, so the user's own held keys don't leak into the event.
         let source = CGEventSource(stateID: .privateState)
         let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)

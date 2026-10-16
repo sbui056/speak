@@ -68,10 +68,10 @@ private struct HUDView: View {
             switch controller.hud.content {
             case .listening, .partial:
                 listening
-            case .processing:
+            case .processing, .rewriting:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Transcribing…")
+                    Text(controller.hud.content == .rewriting ? "Polishing…" : "Transcribing…")
                 }
             case .result(let message):
                 Label(message.text, systemImage: message == .empty ? "questionmark.circle" : "checkmark.circle")

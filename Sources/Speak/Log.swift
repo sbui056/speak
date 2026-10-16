@@ -7,6 +7,7 @@ enum Log {
     static let session = Logger(subsystem: subsystem, category: "session")
     static let audio = Logger(subsystem: subsystem, category: "audio")
     static let stt = Logger(subsystem: subsystem, category: "stt")
+    static let rewrite = Logger(subsystem: subsystem, category: "rewrite")
     static let insert = Logger(subsystem: subsystem, category: "insert")
     static let perm = Logger(subsystem: subsystem, category: "perm")
 }

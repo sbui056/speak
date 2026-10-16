@@ -10,10 +10,24 @@ public final class SessionController {
     public let hud: HUDModel
     /// Mic level for the HUD meter, 0...1.
     public private(set) var level: Float = 0
+    /// The rewrite waiting for the user's decision, while the preview is open.
+    public private(set) var preview: PreviewContent? {
+        didSet { if preview != oldValue { onPreviewChange?(preview) } }
+    }
+    /// Dictionary terms: spellings for correction, the transcriber, and the rewriter.
+    @ObservationIgnored public var terms: [String] = []
+    /// Language for the spell checker, as a locale identifier.
+    @ObservationIgnored public var language = "en_US"
+    /// Called when the preview opens or closes, for the panel that shows it.
+    @ObservationIgnored public var onPreviewChange: ((PreviewContent?) -> Void)?
+    /// Called when the model's reply failed validation, for logging. Never sees text.
+    @ObservationIgnored public var onRewriteRejected: ((RewriteMode) -> Void)?
 
     @ObservationIgnored private let audio: any AudioSource
     @ObservationIgnored private let transcriber: any Transcriber
-    @ObservationIgnored private let deliverer: Deliverer
+    @ObservationIgnored let deliverer: Deliverer
+    @ObservationIgnored private let rewriter: any Rewriter
+    @ObservationIgnored private let spelling: any SpellChecker
     @ObservationIgnored private let hotkey: any HotkeySource
     @ObservationIgnored private let clock: any Clock<Duration>
     @ObservationIgnored private let events: AsyncStream<SessionEvent>
@@ -40,10 +54,13 @@ public final class SessionController {
     }
 
     public init(audio: any AudioSource, transcriber: any Transcriber, deliverer: Deliverer,
+                rewriter: any Rewriter, spelling: any SpellChecker,
                 hotkey: any HotkeySource, clock: any Clock<Duration>) {
         self.audio = audio
         self.transcriber = transcriber
         self.deliverer = deliverer
+        self.rewriter = rewriter
+        self.spelling = spelling
         self.hotkey = hotkey
         self.clock = clock
         self.hud = HUDModel(clock: clock)
@@ -76,23 +93,6 @@ public final class SessionController {
             case .tapReenabled(let down, let at): send(.keyState(isDown: down, at: at))
             }
         }
-    }
-
-    /// The literal from the last dictation, for Paste/Copy last.
-    public var lastTranscript: String? { state.literal }
-
-    public func pasteLast() async {
-        guard let text = state.literal else { return }
-        // Opening the menu doesn't activate Speak, so the target is whatever is frontmost now.
-        let context = await deliverer.capturePressContext()
-        let outcome = await deliverer.deliver(text, context: context)
-        show(outcome)
-    }
-
-    public func copyLast() async {
-        guard let text = state.literal else { return }
-        await deliverer.copy(text)
-        hud.show(.result(.copied))
     }
 
     /// Quit: stop the mic, keep any undelivered text, put the clipboard back.
@@ -142,6 +142,20 @@ public final class SessionController {
                     if !Task.isCancelled { self?.send(.transcriberFailed(id)) }
                 }
             })
+        case .prepareLiteral(let id, let raw):
+            // Local and quick (the spell checker is asked only about near misses).
+            send(.literalReady(id, makeLiteral(raw, terms: terms, spelling: spelling, language: language)))
+        case .prewarmRewriter(let mode):
+            let rewriter = self.rewriter
+            let instructions = rewriteInstructions(mode, terms: terms)
+            Task { await rewriter.prewarm(instructions: instructions) }
+        case .rewrite(let id, let literal, let mode):
+            guard let rt = runtime(id) else { return }
+            rt.cancellable.append(rewrite(id, literal, mode))
+        case .showPreview(let id, let literal, let rewrite):
+            preview = PreviewContent(id: id, mode: state.sessionMode, literal: literal, rewrite: rewrite)
+        case .closePreview:
+            preview = nil
         case .cancelTranscriber(let id):
             guard let pending = runtime(id)?.transcriber else { return }
             // Stop the engine first, then cancel the analyzer. Not part of the
@@ -158,13 +172,17 @@ public final class SessionController {
                 guard await deadline.reached() else { return }
                 self?.timerFired(id, kind)
             })
-        case .deliver(let id, let text):
+        case .deliver(let id, let text), .handoff(let id, let text):
             guard let rt = runtime(id) else { return }
             let press = rt.press
             let deliverer = self.deliverer
+            let returnToApp = if case .handoff = effect { true } else { false }
             // Tracked, so sleep or quit mid-delivery cancels the paste.
             rt.cancellable.append(Task { [weak self] in
                 let context = await press?.value
+                // After the preview, the app the user dictated into comes back first.
+                // If it doesn't, the delivery rules see the app change and copy instead.
+                if returnToApp, let pid = context?.pid { await deliverer.activate(pid) }
                 let outcome = await deliverer.deliver(text, context: context)
                 self?.send(.delivered(id, outcome))
             })
@@ -180,6 +198,22 @@ public final class SessionController {
             guard let rt = runtime(id) else { return }
             rt.cancellable.forEach { $0.cancel() }
             runtime = nil
+        }
+    }
+
+    /// Asks the model, then keeps the reply only if it passes the injection
+    /// guard. The reducer's watchdog decides when to stop waiting.
+    private func rewrite(_ id: SessionID, _ literal: String, _ mode: RewriteMode) -> Task<Void, Never> {
+        let rewriter = self.rewriter
+        let terms = self.terms
+        return Task { [weak self] in
+            let prompt = buildRewritePrompt(literal, mode: mode, terms: terms)
+            var accepted: String?
+            if let reply = try? await rewriter.respond(to: prompt) {
+                accepted = validateRewrite(reply, literal: literal, mode: mode, terms: terms)
+                if accepted == nil { self?.onRewriteRejected?(mode) }
+            }
+            self?.send(.rewritten(id, accepted))
         }
     }
 
@@ -199,6 +233,7 @@ public final class SessionController {
         guard let rt = runtime(id) else { return }
         let audio = self.audio
         let transcriber = self.transcriber
+        let terms = self.terms
         let input = self.input
         let onAudio: @Sendable (AudioEvent) -> Void = { [weak self] event in
             switch event {
@@ -231,7 +266,7 @@ public final class SessionController {
         rt.transcriber = Task {
             guard let frames = await opened.value else { return nil }
             do {
-                return try await transcriber.start(frames: frames, onEvent: onTranscript)
+                return try await transcriber.start(frames: frames, contextualStrings: terms, onEvent: onTranscript)
             } catch {
                 input.yield(.transcriberFailed(id))
                 return nil
@@ -248,7 +283,7 @@ public final class SessionController {
         }
     }
 
-    private func show(_ outcome: DeliveryOutcome) {
+    func show(_ outcome: DeliveryOutcome) {
         switch outcome {
         case .inserted: hud.show(.result(.inserted))
         case .copied(let reason): hud.show(.error(reason))

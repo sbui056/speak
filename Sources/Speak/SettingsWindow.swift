@@ -74,6 +74,28 @@ struct SettingsView: View {
                 }
                 LabeledContent("Speech model", value: modelText)
             }
+
+            Section("Rewriting") {
+                HStack(alignment: .firstTextBaseline) {
+                    let available = app.rewriteAvailability == .available
+                    Image(systemName: available ? "checkmark.circle.fill" : "xmark.circle")
+                        .foregroundStyle(available ? .green : .secondary)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Apple Intelligence")
+                        Text(app.rewriteAvailability.reason ?? "Concise and Polished are available.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(available ? "Available" : "Unavailable").foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                Toggle("Always preview rewrites", isOn: $app.alwaysPreview)
+                Text("Rewrites that change your words are always previewed. Turn this on to also preview "
+                     + "punctuation and capitalization fixes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 480)

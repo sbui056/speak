@@ -116,8 +116,9 @@ public enum MenuIcon: Equatable, Sendable {
     public init(phase: Phase, hasProblem: Bool) {
         switch phase {
         case .arming, .listening: self = .listening
-        case .finalizing, .delivering: self = .processing
-        case .idle: self = hasProblem ? .problem : .idle
+        case .finalizing, .rewriting, .delivering: self = .processing
+        // The preview panel itself shows what's going on.
+        case .idle, .awaitingAcceptance: self = hasProblem ? .problem : .idle
         }
     }
 

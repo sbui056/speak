@@ -11,7 +11,7 @@ public func reduce(_ state: SessionState, _ event: SessionEvent) -> (SessionStat
 /// within the stuck-key window.
 public let keyPollInterval: Duration = Constants.stuck / 3
 
-private struct Reducer {
+struct Reducer {
     var state: SessionState
     var effects: [Effect] = []
 
@@ -38,9 +38,16 @@ private struct Reducer {
         case .transcriberFailed:
             if [.arming, .listening, .finalizing].contains(state.phase) { fail(.stt) }
 
+        case .literalReady(_, let literal): literalReady(literal)
+        case .rewritten(_, let text): rewritten(text)
+        case .preview(_, let action): preview(action)
+
         case .timer(_, let kind): timer(kind)
         case .delivered(_, let outcome): delivered(outcome)
 
+        case .rewriteSettings(let mode, let alwaysPreview):
+            state.mode = mode
+            state.alwaysPreview = alwaysPreview
         case .modelStatus(let status): state.model = status
         case .micPermission(let granted): state.micGranted = granted
         case .systemSleep: shutdown()
@@ -53,7 +60,8 @@ private struct Reducer {
     // MARK: Hotkey
 
     mutating func press(at: KeyTime) {
-        // One session at a time.
+        // One session at a time. An open preview says so; elsewhere it's silent.
+        if state.phase == .awaitingAcceptance { return emit(.showHUD(.error(.busy))) }
         guard state.phase == .idle, !state.terminating else { return }
         guard state.micGranted else { return emit(.showHUD(.error(.mic))) }
         switch state.model {
@@ -66,6 +74,7 @@ private struct Reducer {
         state.current = id
         state.phase = .arming
         state.pressedAt = at
+        state.sessionMode = state.mode
         // The mic opens at press so the first word isn't lost.
         emit(.capturePressContext(id), .startCapture(id),
              .startTimer(id, .hold, after: Constants.hold))
@@ -115,6 +124,7 @@ private struct Reducer {
              .startTimer(id, .sttStart, after: Constants.sttStart),
              .startTimer(id, .cap, after: Constants.cap),
              .startTimer(id, .keyPoll, after: keyPollInterval))
+        if state.sessionMode != .literal { emit(.prewarmRewriter(state.sessionMode)) }
     }
 
     /// Release (or the cap) ends capture: too short or silent clips are dropped
@@ -136,17 +146,25 @@ private struct Reducer {
     }
 
     mutating func finalized(_ text: String) {
-        guard state.phase == .finalizing else { return }
+        guard state.phase == .finalizing, !state.preparingLiteral else { return }
         state.consecutiveAbandons = 0
-        deliver(cleanLiteral(text))
+        prepare(text)
     }
 
-    mutating func deliver(_ literal: String) {
+    mutating func prepare(_ raw: String) {
         guard let id = state.current else { return }
-        guard !literal.isEmpty else { return finish(.result(.empty)) }
-        state.literal = literal
+        state.preparingLiteral = true
+        emit(.prepareLiteral(id, raw))
+    }
+
+    /// `handoff` returns focus to the original app first (after the preview).
+    mutating func deliver(_ text: String, handoff: Bool = false) {
+        guard let id = state.current else { return }
+        guard !text.isEmpty else { return finish(.result(.empty)) }
+        state.delivered = text
         state.phase = .delivering
-        emit(.deliver(id, literal), .startTimer(id, .deliver, after: Constants.deliver))
+        emit(handoff ? .handoff(id, text) : .deliver(id, text),
+             .startTimer(id, .deliver, after: Constants.deliver))
     }
 
     mutating func audioFailed(_ failure: AudioFailure) {
@@ -174,7 +192,10 @@ private struct Reducer {
         case (.keyPoll, .listening):
             emit(.startTimer(id, .keyPoll, after: keyPollInterval))
         case (.finalize, .finalizing):
-            abandon(fallingBackTo: state.lastPartial)
+            // Once the transcript is in, the dictionary step is local and can't hang.
+            if !state.preparingLiteral { abandon(fallingBackTo: state.lastPartial) }
+        case (.rewrite, .rewriting):
+            fallBackToLiteral()
         case (.deliver, .delivering):
             // Paste hung (an unresponsive app). Ending the session cancels it;
             // the text still ends up somewhere the user can get it.
@@ -192,12 +213,9 @@ private struct Reducer {
         state.consecutiveAbandons += 1
         state.restartAdvised = state.consecutiveAbandons >= 2
         emit(.stopAudio(id), .cancelTranscriber(id))
-        if let partial {
-            let literal = cleanLiteral(partial)
-            if !literal.isEmpty {
-                state.usedPartialFallback = true
-                return deliver(literal)
-            }
+        if let partial, !cleanLiteral(partial).isEmpty {
+            state.usedPartialFallback = true
+            return prepare(partial)
         }
         finish(.error(state.restartAdvised ? .restart : .stt))
     }
@@ -209,7 +227,8 @@ private struct Reducer {
         // The text still lands, but a hung engine matters more than the result.
         if state.restartAdvised { return finish(.error(.restart)) }
         switch outcome {
-        case .inserted: finish(.result(state.usedPartialFallback ? .finalize : .inserted))
+        case .inserted:
+            finish(.result(state.usedPartialFallback ? .finalize : state.resultNote ?? .inserted))
         case .copied(let reason): finish(reason == .copied ? .result(.copied) : .error(reason))
         case .empty: finish(.result(.empty))
         }
@@ -218,9 +237,11 @@ private struct Reducer {
     /// Sleep or quit: stop the mic, and never lose a literal that wasn't delivered.
     mutating func shutdown() {
         guard let id = state.current else { return }
-        if state.phase == .delivering, let literal = state.literal {
+        // The literal exists from rewriting onward and must survive.
+        if [.rewriting, .awaitingAcceptance, .delivering].contains(state.phase), let literal = state.literal {
             emit(.copyToPasteboard(literal))
         }
+        if state.phase == .awaitingAcceptance { emit(.closePreview) }
         emit(.stopAudio(id), .cancelTranscriber(id), .hideHUD, .endSession(id))
         state.resetSession()
     }
@@ -253,7 +274,8 @@ extension SessionEvent {
         switch self {
         case .audioStarted(let id), .audioFailed(let id, _), .audioPeak(let id, _), .deviceChanged(let id),
              .transcriberActive(let id), .partial(let id, _), .finalized(let id, _),
-             .transcriberFailed(let id), .timer(let id, _), .delivered(let id, _):
+             .transcriberFailed(let id), .timer(let id, _), .delivered(let id, _),
+             .literalReady(let id, _), .rewritten(let id, _), .preview(let id, _):
             id
         default:
             nil

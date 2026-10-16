@@ -55,3 +55,27 @@ public func evaluateDelivery(_ s: DeliverySnapshot) -> DeliveryDecision {
     if s.modifiersHeld { return .copy(reason: .modifiers, concealed: false) }
     return .paste
 }
+
+/// What a paste left behind, so Undo insert can tell whether it's still safe.
+struct UndoOffer: Sendable {
+    let pid: Int32
+    let element: ElementRef
+    /// The field's expected text length right after the paste, if readable.
+    let expectedLength: Int?
+}
+
+/// The desktop at the moment the user picks Undo insert.
+struct UndoSnapshot: Equatable, Sendable {
+    var frontmostPID: Int32?
+    /// Nil when the focused element can't be read now.
+    var sameElement: Bool?
+    var textLength: Int?
+}
+
+/// ⌘Z only lands safely in the same app and field, and only if the field still
+/// looks like it did after the paste (where its length can be read).
+func undoAllowed(_ offer: UndoOffer, now: UndoSnapshot) -> Bool {
+    guard now.frontmostPID == offer.pid, now.sameElement == true else { return false }
+    if let expected = offer.expectedLength, let length = now.textLength { return length == expected }
+    return true
+}

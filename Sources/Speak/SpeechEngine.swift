@@ -28,10 +28,16 @@ final class SpeechAnalyzerTranscriber: Transcriber {
         await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [makeModule()])
     }
 
-    func start(frames: AsyncStream<AudioFrames>,
+    func start(frames: AsyncStream<AudioFrames>, contextualStrings: [String],
                onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession {
         let module = makeModule()
         let analyzer = SpeechAnalyzer(modules: [module])
+        if !contextualStrings.isEmpty {
+            // Biases recognition toward the user's names and terms.
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = contextualStrings
+            try await analyzer.setContext(context)
+        }
         let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module])
         let started = ContinuousClock.now
         try await analyzer.prepareToAnalyze(in: format)

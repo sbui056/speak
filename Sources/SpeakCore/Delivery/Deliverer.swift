@@ -9,6 +9,8 @@ public actor Deliverer {
     /// interleaves at every await, and two pastes overlapping would snapshot each
     /// other's text instead of the user's clipboard.
     private var tail: Task<Void, Never>?
+    /// The last paste, undoable until it expires (C-UNDO) or is used.
+    private var undo: (offer: UndoOffer, expiry: Task<Void, Never>)?
 
     private struct PendingRestore {
         let snapshot: PasteboardSnapshot
@@ -42,6 +44,33 @@ public actor Deliverer {
     /// up. A pending restore then sees the change count moved and leaves it alone.
     public func rescue(_ text: String) async {
         await pasteboard.write(text, as: .normal)
+    }
+
+    /// Brings `pid` to the front and waits briefly for it (after the preview panel).
+    public func activate(_ pid: Int32) async {
+        if await env.frontmostPID() == pid { return }
+        await env.activate(pid: pid)
+        let step: Duration = .milliseconds(20)
+        var waited: Duration = .zero
+        while await env.frontmostPID() != pid, waited < Constants.activate {
+            _ = await Deadline(after: step, on: clock).reached()
+            waited += step
+        }
+    }
+
+    /// A recent paste can still be undone (the menu shows Undo insert).
+    public var canUndo: Bool { undo != nil }
+
+    /// Undo is safe only in the same app and field, with the text apparently untouched.
+    public func undoIsSafe() async -> Bool {
+        guard let offer = undo?.offer else { return false }
+        return undoAllowed(offer, now: await undoSnapshot(for: offer))
+    }
+
+    /// Sends ⌘Z once if it's still safe. The offer is used up either way.
+    @discardableResult
+    public func undoLastInsert() async -> Bool {
+        await serially { await $0.undoNow() }
     }
 
     /// Puts the user's clipboard back now instead of waiting, if it's still ours.
@@ -83,6 +112,7 @@ public actor Deliverer {
             await pasteboard.write(text, as: concealed ? .concealed : .normal)
             return .copied(reason)
         case .paste:
+            await recordUndo(for: text, pid: snapshot.frontmostPID, focus: focusNow)
             await paste(text)
             return .inserted
         }
@@ -103,7 +133,7 @@ public actor Deliverer {
     private func paste(_ text: String) async {
         let saved = await pasteboard.snapshot()
         let ours = await pasteboard.write(text, as: .transient)
-        await env.postPaste(keyCode: pasteKeyCode(in: await env.keyboardLayout()))
+        await env.postPaste(keyCode: keyCode(for: "v", in: await env.keyboardLayout()))
         // A lazy or promised item can't be restored faithfully, so leave the text in place.
         guard let saved else { return }
         let delay = Constants.slowPasteApps.contains(await env.frontmostBundleID() ?? "")
@@ -120,6 +150,46 @@ public actor Deliverer {
         // If the user copied something since, theirs wins.
         guard await pasteboard.changeCount() == pending.ourChangeCount else { return }
         await pasteboard.restore(pending.snapshot)
+    }
+
+    private func recordUndo(for text: String, pid: Int32?, focus: FocusedElement) async {
+        undo?.expiry.cancel()
+        undo = nil
+        guard let pid, case .element(let element) = focus else { return }
+        var expected: Int?
+        if let length = await env.textLength(of: element) {
+            // A paste replaces the selection.
+            expected = length - (await env.selectionLength(of: element) ?? 0) + text.utf16.count
+        }
+        let deadline = Deadline(after: Constants.undo, on: clock)
+        let expiry = Task { [weak self] in
+            guard await deadline.reached() else { return }
+            await self?.expireUndo()
+        }
+        undo = (UndoOffer(pid: pid, element: element, expectedLength: expected), expiry)
+    }
+
+    private func expireUndo() {
+        undo = nil
+    }
+
+    private func undoNow() async -> Bool {
+        guard let offer = undo?.offer else { return false }
+        undo?.expiry.cancel()
+        undo = nil
+        guard undoAllowed(offer, now: await undoSnapshot(for: offer)) else { return false }
+        await env.postUndo(keyCode: keyCode(for: "z", in: await env.keyboardLayout()))
+        return true
+    }
+
+    private func undoSnapshot(for offer: UndoOffer) async -> UndoSnapshot {
+        var sameElement: Bool?
+        var length: Int?
+        if case .element(let now) = await env.focusedElement() {
+            sameElement = await env.isSameElement(offer.element, now)
+            length = await env.textLength(of: now)
+        }
+        return UndoSnapshot(frontmostPID: await env.frontmostPID(), sameElement: sameElement, textLength: length)
     }
 
     /// ⌘V is wrong if the user is still holding Shift or Option, so wait briefly.
@@ -145,8 +215,8 @@ public actor Deliverer {
     }
 }
 
-/// The keycode that types "v" in this layout, so ⌘V works on Dvorak and friends.
-/// Falls back to the ANSI position.
-public func pasteKeyCode(in layout: [UInt16: Character]) -> UInt16 {
-    layout.filter { $0.value == "v" }.keys.min() ?? 9
+/// The keycode that types `letter` in this layout, so ⌘V and ⌘Z work on Dvorak
+/// and friends. Falls back to the ANSI position.
+public func keyCode(for letter: Character, in layout: [UInt16: Character]) -> UInt16 {
+    layout.filter { $0.value == letter }.keys.min() ?? (letter == "z" ? 6 : 9)
 }

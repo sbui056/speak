@@ -1,0 +1,76 @@
+import Foundation
+
+/// Answers whether a word is misspelled, so near-miss correction never alters
+/// a real word ("there" must not become "Thera").
+public protocol SpellChecker: Sendable {
+    @MainActor func isMisspelled(_ word: String, language: String) -> Bool
+}
+
+/// Literal mode's full pipeline: tidy the text, then apply the user's spellings.
+@MainActor
+public func makeLiteral(_ raw: String, terms: [String], spelling: any SpellChecker, language: String) -> String {
+    correctTerms(cleanLiteral(raw), terms: terms) { spelling.isMisspelled($0, language: language) }
+}
+
+/// Rewrites dictionary terms to the user's exact spelling.
+/// - A whole-word or phrase match, ignoring case, takes the term's casing.
+/// - A word one edit away from a single-word term of 5+ characters is replaced
+///   only if `isMisspelled` says it isn't a real word.
+public func correctTerms(_ text: String, terms: [String], isMisspelled: (String) -> Bool) -> String {
+    guard !terms.isEmpty, !text.isEmpty else { return text }
+    let ns = text as NSString
+    var edits: [(range: NSRange, term: String)] = []
+
+    // Longest first, so "New York Times" wins over "New York" at the same spot.
+    let byLength = terms.sorted { $0.count > $1.count }
+    let alternatives = byLength.map { term in
+        term.split(whereSeparator: \.isWhitespace)
+            .map { NSRegularExpression.escapedPattern(for: String($0)) }
+            .joined(separator: "\\s+")
+    }
+    let pattern = "(?<![\\p{L}\\p{N}_])(?:" + alternatives.map { "(\($0))" }.joined(separator: "|") + ")(?![\\p{L}\\p{N}_])"
+    if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
+            else { continue }
+            edits.append((match.range, byLength[group - 1]))
+        }
+    }
+
+    let fuzzyTerms = terms.filter { $0.count >= 5 && !$0.contains(where: \.isWhitespace) }
+    if !fuzzyTerms.isEmpty, let words = try? NSRegularExpression(pattern: "[\\p{L}\\p{N}]+") {
+        let exact = edits.map(\.range)
+        for match in words.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            if exact.contains(where: { NSIntersectionRange($0, match.range).length > 0 }) { continue }
+            let word = ns.substring(with: match.range)
+            let near = fuzzyTerms.filter { isOneEditAway(word, $0) }
+            // Two terms equally close is a guess; leave the word alone.
+            guard near.count == 1, isMisspelled(word) else { continue }
+            edits.append((match.range, near[0]))
+        }
+    }
+
+    let result = NSMutableString(string: text)
+    for edit in edits.sorted(by: { $0.range.location > $1.range.location }) {
+        result.replaceCharacters(in: edit.range, with: edit.term)
+    }
+    return result as String
+}
+
+/// True when the words differ (ignoring case) by exactly one insertion,
+/// deletion, or substitution.
+func isOneEditAway(_ a: String, _ b: String) -> Bool {
+    let x = Array(a.lowercased()), y = Array(b.lowercased())
+    guard abs(x.count - y.count) <= 1, x != y else { return false }
+    var i = 0, j = 0, edits = 0
+    while i < x.count, j < y.count {
+        if x[i] == y[j] {
+            i += 1; j += 1
+            continue
+        }
+        edits += 1
+        if edits > 1 { return false }
+        if x.count > y.count { i += 1 } else if x.count < y.count { j += 1 } else { i += 1; j += 1 }
+    }
+    return edits + (x.count - i) + (y.count - j) <= 1
+}

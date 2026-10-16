@@ -5,12 +5,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let app = AppModel()
     private var menuBar: MenuBarController?
     private var hud: HUDPanelController?
+    private var preview: PreviewPanelController?
     private lazy var settings = SettingsWindowController(app: app)
+    private lazy var dictionary = DictionaryWindowController(dictionary: app.dictionary)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = self.settings
-        menuBar = MenuBarController(app: app, openSettings: { settings.show() })
+        let dictionary = self.dictionary
+        menuBar = MenuBarController(app: app, openSettings: { settings.show() }, openDictionary: { dictionary.show() })
         hud = HUDPanelController(controller: app.controller, openSettings: { settings.show() })
+        preview = PreviewPanelController(controller: app.controller)
         Task {
             // Settings opens once per launch while anything is missing.
             if await app.start() { settings.show() }

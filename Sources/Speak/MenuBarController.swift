@@ -8,11 +8,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let app: AppModel
     private let openSettings: () -> Void
+    private let openDictionary: () -> Void
     private var shownIcon: MenuIcon?
 
-    init(app: AppModel, openSettings: @escaping () -> Void) {
+    init(app: AppModel, openSettings: @escaping () -> Void, openDictionary: @escaping () -> Void) {
         self.app = app
         self.openSettings = openSettings
+        self.openDictionary = openDictionary
         super.init()
         statusItem.button?.setAccessibilityLabel("Speak")
         let menu = NSMenu()
@@ -50,26 +52,45 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         copy.isEnabled = hasLast
         menu.addItem(paste)
         menu.addItem(copy)
+        // Shown only once the check confirms the same app and field are still focused.
+        let undo = item("Undo insert", #selector(undoInsert))
+        undo.isHidden = true
+        menu.addItem(undo)
+        let controller = app.controller
+        Task { undo.isHidden = !(await controller.undoIsSafe()) }
         menu.addItem(.separator())
 
-        let mode = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
-        let modes = NSMenu()
-        let literal = NSMenuItem(title: "Literal", action: nil, keyEquivalent: "")
-        literal.state = .on
-        modes.addItem(literal)
-        for name in ["Concise", "Polished"] {
-            let rewrite = NSMenuItem(title: name, action: nil, keyEquivalent: "")
-            rewrite.isEnabled = false
-            rewrite.toolTip = "Not available yet"
-            modes.addItem(rewrite)
-        }
-        mode.submenu = modes
-        menu.addItem(mode)
+        menu.addItem(modeItem())
+        menu.addItem(item("Dictionary…", #selector(dictionaryClicked)))
         menu.addItem(.separator())
 
         menu.addItem(item("Settings…", #selector(settingsClicked), key: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Speak", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+    }
+
+    private func modeItem() -> NSMenuItem {
+        let mode = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
+        let modes = NSMenu()
+        let reason = app.rewriteAvailability.reason
+        for choice in RewriteMode.allCases {
+            let entry = item(choice.title, #selector(modeClicked(_:)))
+            entry.representedObject = choice.rawValue
+            entry.state = app.mode == choice ? .on : .off
+            if choice != .literal, let reason {
+                entry.isEnabled = false
+                entry.toolTip = reason
+            }
+            modes.addItem(entry)
+        }
+        if let reason {
+            modes.addItem(.separator())
+            let why = NSMenuItem(title: reason, action: nil, keyEquivalent: "")
+            why.isEnabled = false
+            modes.addItem(why)
+        }
+        mode.submenu = modes
+        return mode
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
@@ -87,6 +108,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         Task { await app.controller.copyLast() }
     }
 
+    @objc private func undoInsert() {
+        Task {
+            let undone = await app.controller.undoLastInsert()
+            Log.insert.info("undo insert sent=\(undone, privacy: .public)")
+        }
+    }
+
+    @objc private func modeClicked(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let mode = RewriteMode(rawValue: raw) else { return }
+        app.mode = mode
+    }
+
+    @objc private func dictionaryClicked() { openDictionary() }
     @objc private func relaunch() { app.relaunch() }
     @objc private func settingsClicked() { openSettings() }
 }

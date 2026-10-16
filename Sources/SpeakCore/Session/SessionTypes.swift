@@ -19,6 +19,10 @@ public enum Phase: Equatable, Sendable {
     case listening
     /// Mic closed, transcriber finishing.
     case finalizing
+    /// The language model is cleaning up the literal (Concise or Polished).
+    case rewriting
+    /// The preview panel is open; nothing is inserted until the user decides.
+    case awaitingAcceptance
     case delivering
 }
 
@@ -38,6 +42,7 @@ public enum TimerKind: Equatable, Sendable {
     case sttStart
     case cap
     case finalize
+    case rewrite
     /// Delivery watchdog: a hung app must not leave dictation stuck.
     case deliver
     /// Periodic hotkey state poll that catches a lost key-up.
@@ -77,19 +82,38 @@ public enum SessionEvent: Equatable, Sendable {
     case finalized(SessionID, String)
     case transcriberFailed(SessionID)
 
+    /// The final transcript after Literal cleanup and dictionary correction.
+    case literalReady(SessionID, String)
+    /// A validated rewrite, or nil when it failed or was rejected.
+    case rewritten(SessionID, String?)
+    /// The user's choice in the preview panel.
+    case preview(SessionID, PreviewAction)
+
     case timer(SessionID, TimerKind)
     case delivered(SessionID, DeliveryOutcome)
 
     // Environment
+    case rewriteSettings(mode: RewriteMode, alwaysPreview: Bool)
     case modelStatus(SpeechModelStatus)
     case micPermission(granted: Bool)
     case systemSleep
     case quit
 }
 
+public enum PreviewAction: Equatable, Sendable {
+    /// Insert this text: the rewrite as shown, or the user's edit of it.
+    case insert(String)
+    /// Insert the unchanged literal; counts as rejecting the rewrite.
+    case insertLiteral
+    /// Copy this text instead of inserting it.
+    case copy(String)
+    case cancel
+}
+
 public enum HUDContent: Equatable, Sendable {
     case listening
     case processing
+    case rewriting
     case partial(String)
     case error(Messages)
     case result(Messages)
@@ -103,10 +127,19 @@ public enum Effect: Equatable, Sendable {
     /// Close the mic. Safe to repeat.
     case stopAudio(SessionID)
     case finalizeTranscriber(SessionID)
+    /// Clean the raw transcript and apply the dictionary, then report `.literalReady`.
+    case prepareLiteral(SessionID, String)
+    /// Load the language model ahead of a likely rewrite.
+    case prewarmRewriter(RewriteMode)
+    case rewrite(SessionID, String, RewriteMode)
+    case showPreview(SessionID, literal: String, rewrite: String)
+    case closePreview
     case cancelTranscriber(SessionID)
     case startTimer(SessionID, TimerKind, after: Duration)
     /// Run the delivery rules and paste or copy.
     case deliver(SessionID, String)
+    /// After the preview: bring the original app back to the front, then deliver.
+    case handoff(SessionID, String)
     /// A plain pasteboard copy that saves text a hung, interrupted, or cancelled delivery would lose.
     case copyToPasteboard(String)
     case showHUD(HUDContent)

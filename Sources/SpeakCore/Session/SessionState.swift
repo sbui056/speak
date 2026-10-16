@@ -16,10 +16,20 @@ public struct SessionState: Equatable, Sendable {
     public var restartAdvised = false
     /// When the hotkey was first seen up while still listening.
     public var keyUpSince: KeyTime?
+    /// The mode this session was started in; a change mid-session applies next time.
+    public var sessionMode: RewriteMode = .literal
+    /// Waiting for `.literalReady` after the transcript arrived.
+    public var preparingLiteral = false
+    /// Shown instead of "Inserted" when the literal went in for a reason (too long, rewrite failed).
+    public var resultNote: Messages?
 
     // Survive across sessions.
     /// The last literal transcript, kept for Paste/Copy last.
     public var literal: String?
+    /// What was actually inserted or copied: the literal, the accepted rewrite, or an edit.
+    public var delivered: String?
+    public var mode: RewriteMode = .literal
+    public var alwaysPreview = false
     public var model: SpeechModelStatus = .installed
     public var micGranted = true
     /// Set on quit, so a press during shutdown can't open the mic again.
@@ -40,5 +50,8 @@ public struct SessionState: Equatable, Sendable {
         usedPartialFallback = false
         restartAdvised = false
         keyUpSince = nil
+        sessionMode = .literal
+        preparingLiteral = false
+        resultNote = nil
     }
 }

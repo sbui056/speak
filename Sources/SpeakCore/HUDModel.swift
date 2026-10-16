@@ -31,7 +31,7 @@ public final class HUDModel {
             set(new, hideAfter: Constants.hudError)
         case .result:
             set(new, hideAfter: Constants.hudOK)
-        case .listening, .processing:
+        case .listening, .processing, .rewriting:
             set(new, hideAfter: nil)
         }
     }

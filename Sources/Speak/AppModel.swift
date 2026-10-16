@@ -10,10 +10,29 @@ import Speech
 final class AppModel {
     let controller: SessionController
     let permissions: PermissionsModel
+    let dictionary: DictionaryModel
     /// `SPEAK_FAKE=1`: canned audio and transcript, real hotkey and delivery.
     let isFake: Bool
     private(set) var model: SpeechModelStatus = .downloading(percent: 0)
     private(set) var supportedLocales: [Locale] = []
+    /// Whether Concise and Polished can run, and why not.
+    private(set) var rewriteAvailability: RewriteAvailability = .modelNotReady
+
+    var mode: RewriteMode {
+        didSet {
+            UserDefaults.standard.set(mode.rawValue, forKey: Keys.mode)
+            sendRewriteSettings()
+            if mode != .literal { prewarm() }
+        }
+    }
+
+    /// Show the preview even when only casing or punctuation changed.
+    var alwaysPreview: Bool {
+        didSet {
+            UserDefaults.standard.set(alwaysPreview, forKey: Keys.alwaysPreview)
+            sendRewriteSettings()
+        }
+    }
 
     var hotkey: HotkeyChoice {
         didSet {
@@ -28,6 +47,7 @@ final class AppModel {
         didSet {
             UserDefaults.standard.set(locale.identifier, forKey: Keys.locale)
             transcriber?.setLocale(locale)
+            controller.language = locale.identifier
             Task { await refreshModel() }
         }
     }
@@ -35,6 +55,7 @@ final class AppModel {
     @ObservationIgnored private let hotkeySource: any HotkeySource
     @ObservationIgnored private let transcriber: SpeechAnalyzerTranscriber?
     @ObservationIgnored private let modelStore: (any SpeechModelStore)?
+    @ObservationIgnored private let rewriter: any Rewriter
     @ObservationIgnored private var hotkeyTask: Task<Void, Never>?
     @ObservationIgnored private var installing = false
     /// Called when anything the menu-bar icon depends on changes.
@@ -43,6 +64,8 @@ final class AppModel {
     private enum Keys {
         static let hotkey = "hotkey"
         static let locale = "language"
+        static let mode = "mode"
+        static let alwaysPreview = "alwaysPreview"
     }
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -50,6 +73,8 @@ final class AppModel {
         let savedLocale = defaults.string(forKey: Keys.locale).map(Locale.init(identifier:)) ?? Locale.current
         hotkey = defaults.string(forKey: Keys.hotkey).flatMap(HotkeyChoice.init(rawValue:)) ?? .rightOption
         locale = savedLocale
+        mode = defaults.string(forKey: Keys.mode).flatMap(RewriteMode.init(rawValue:)) ?? .literal
+        alwaysPreview = defaults.bool(forKey: Keys.alwaysPreview)
         isFake = environment["SPEAK_FAKE"] == "1"
 
         let clock = ContinuousClock()
@@ -62,20 +87,27 @@ final class AppModel {
             if let text = environment["SPEAK_FAKE_TEXT"] { config.text = text }
             audio = FakeAudioSource()
             stt = FakeTranscriber(config)
+            rewriter = FakeRewriter()
             transcriber = nil
             modelStore = nil
         } else {
             let real = SpeechAnalyzerTranscriber(locale: savedLocale)
             audio = EngineAudioSource(targetFormat: { await real.audioFormat() })
             stt = real
+            rewriter = FoundationRewriter()
             transcriber = real
             modelStore = AssetModelStore(transcriber: real)
         }
         self.hotkeySource = hotkeySource
         controller = SessionController(audio: audio, transcriber: stt, deliverer: deliverer,
+                                       rewriter: rewriter, spelling: SystemSpellChecker(),
                                        hotkey: hotkeySource, clock: clock)
+        dictionary = DictionaryModel(files: .standard)
         permissions = PermissionsModel(checker: SystemPermissionChecker(), clock: clock)
         controller.hotkeyChoice = hotkey
+        controller.language = savedLocale.identifier
+        controller.terms = dictionary.terms
+        dictionary.onChange = { [controller] terms in controller.terms = terms }
     }
 
     /// Starts everything. Returns whether Settings should open (a permission is missing).
@@ -90,8 +122,13 @@ final class AppModel {
             Log.perm.info("\(String(describing: permission), privacy: .public) granted=\(granted, privacy: .public)")
             if permission == .microphone { controller.send(.micPermission(granted: granted)) }
         }
+        controller.onRewriteRejected = { mode in
+            Log.rewrite.info("rewrite rejected by the guard mode=\(mode.rawValue, privacy: .public)")
+        }
+        sendRewriteSettings()
         Task { await controller.run() }
         observeSystem()
+        Task { await refreshRewriteAvailability() }
         await permissions.refresh()
         startHotkey()
         Task { await refreshModel() }
@@ -118,7 +155,30 @@ final class AppModel {
         NSApp.terminate(nil)
     }
 
+    /// Re-checked on launch and whenever Speak becomes active, since Apple
+    /// Intelligence can be turned on or off in System Settings at any time.
+    func refreshRewriteAvailability() async {
+        let availability = await rewriter.availability()
+        guard availability != rewriteAvailability else { return }
+        rewriteAvailability = availability
+        Log.rewrite.info("rewrite availability \(String(describing: availability), privacy: .public)")
+        sendRewriteSettings()
+        if availability == .available, mode != .literal { prewarm() }
+    }
+
     // MARK: Private
+
+    /// The session uses Literal while rewrites are unavailable, whatever was chosen.
+    private func sendRewriteSettings() {
+        let effective = rewriteAvailability == .available ? mode : .literal
+        controller.send(.rewriteSettings(mode: effective, alwaysPreview: alwaysPreview))
+    }
+
+    private func prewarm() {
+        let instructions = rewriteInstructions(mode, terms: dictionary.terms)
+        let rewriter = self.rewriter
+        Task { await rewriter.prewarm(instructions: instructions) }
+    }
 
     private func startHotkey() {
         hotkeyTask?.cancel()
@@ -175,6 +235,7 @@ final class AppModel {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 Task { await self.permissions.refresh() }
+                Task { await self.refreshRewriteAvailability() }
             }
         }
     }

@@ -17,6 +17,10 @@ private let loud: SessionEvent = .audioPeak(s1, dBFS: -20)
 private let listening: [SessionEvent] = [.pressed(at: ms(0)), .timer(s1, .hold), loud]
 /// Released after a normal utterance; now finalizing.
 private let finalizing = listening + [.released(at: ms(1500))]
+/// The final transcript, then the controller's dictionary step (no terms in these tests).
+private func final(_ id: SessionID, _ raw: String) -> [SessionEvent] {
+    [.finalized(id, raw), .literalReady(id, cleanLiteral(raw))]
+}
 private let teardown: [Effect] = [.stopAudio(s1), .cancelTranscriber(s1), .hideHUD, .endSession(s1)]
 
 struct ReducerTests {
@@ -55,13 +59,17 @@ struct ReducerTests {
             phase: .idle, effects: teardown),
         Row(name: "partial updates the HUD", events: listening + [.partial(s1, "hello")], phase: .listening,
             effects: [.showHUD(.partial("hello"))]),
-        Row(name: "final text is cleaned and delivered", events: finalizing + [.finalized(s1, "  hello   world ")],
+        Row(name: "final text goes to the dictionary step", events: finalizing + [.finalized(s1, "  hello   world ")],
+            phase: .finalizing, effects: [.prepareLiteral(s1, "  hello   world ")]),
+        Row(name: "literal is delivered", events: finalizing + final(s1, "  hello   world "),
             phase: .delivering, effects: [.deliver(s1, "Hello world"), .startTimer(s1, .deliver, after: Constants.deliver)]),
-        Row(name: "empty transcript shows \"Didn't catch that\"", events: finalizing + [.finalized(s1, "  ")], phase: .idle,
+        Row(name: "finalize timer during the dictionary step is ignored",
+            events: finalizing + [.finalized(s1, "hey"), .timer(s1, .finalize)], phase: .finalizing, effects: []),
+        Row(name: "empty transcript shows \"Didn't catch that\"", events: finalizing + final(s1, "  "), phase: .idle,
             effects: [.showHUD(.result(.empty)), .endSession(s1)]),
-        Row(name: "insert shows Inserted", events: finalizing + [.finalized(s1, "hi"), .delivered(s1, .inserted)],
+        Row(name: "insert shows Inserted", events: finalizing + final(s1, "hi") + [.delivered(s1, .inserted)],
             phase: .idle, effects: [.showHUD(.result(.inserted)), .endSession(s1)]),
-        Row(name: "copy shows its reason", events: finalizing + [.finalized(s1, "hi"), .delivered(s1, .copied(.secure))],
+        Row(name: "copy shows its reason", events: finalizing + final(s1, "hi") + [.delivered(s1, .copied(.secure))],
             phase: .idle, effects: [.showHUD(.error(.secure)), .endSession(s1)]),
         Row(name: "device change fails with the device message", events: listening + [.deviceChanged(s1)], phase: .idle,
             effects: [.stopAudio(s1), .cancelTranscriber(s1), .showHUD(.error(.device)), .endSession(s1)]),
@@ -76,9 +84,11 @@ struct ReducerTests {
         Row(name: "transcriber activity satisfies the start watchdog",
             events: listening + [.transcriberActive(s1), .timer(s1, .sttStart)], phase: .listening, effects: []),
         Row(name: "slow finalize uses the last partial",
-            events: finalizing + [.partial(s1, "hello there"), .timer(s1, .finalize)], phase: .delivering,
-            effects: [.stopAudio(s1), .cancelTranscriber(s1), .deliver(s1, "Hello there"),
-                      .startTimer(s1, .deliver, after: Constants.deliver)]),
+            events: finalizing + [.partial(s1, "hello there"), .timer(s1, .finalize)], phase: .finalizing,
+            effects: [.stopAudio(s1), .cancelTranscriber(s1), .prepareLiteral(s1, "hello there")]),
+        Row(name: "the partial is delivered after the dictionary step",
+            events: finalizing + [.partial(s1, "hello there"), .timer(s1, .finalize), .literalReady(s1, "Hello there")],
+            phase: .delivering, effects: [.deliver(s1, "Hello there"), .startTimer(s1, .deliver, after: Constants.deliver)]),
         Row(name: "key poll re-arms while the key is down", events: listening + [.timer(s1, .keyPoll)], phase: .listening,
             effects: [.startTimer(s1, .keyPoll, after: keyPollInterval)]),
         Row(name: "key up briefly is tolerated",
@@ -101,17 +111,17 @@ struct ReducerTests {
             phase: .idle, effects: [.showHUD(.error(.modelUnavailable(language: "Klingon")))]),
         Row(name: "device change after capture is ignored", events: finalizing + [.deviceChanged(s1)], phase: .finalizing, effects: []),
         Row(name: "transcriber error while delivering is ignored",
-            events: finalizing + [.finalized(s1, "hi"), .transcriberFailed(s1)], phase: .delivering, effects: []),
+            events: finalizing + final(s1, "hi") + [.transcriberFailed(s1)], phase: .delivering, effects: []),
         Row(name: "partial while finalizing doesn't touch the HUD", events: finalizing + [.partial(s1, "late")],
             phase: .finalizing, effects: []),
         Row(name: "plain copy shows Copied as a result",
-            events: finalizing + [.finalized(s1, "hi"), .delivered(s1, .copied(.copied))], phase: .idle,
+            events: finalizing + final(s1, "hi") + [.delivered(s1, .copied(.copied))], phase: .idle,
             effects: [.showHUD(.result(.copied)), .endSession(s1)]),
         Row(name: "hung delivery copies the literal and ends",
-            events: finalizing + [.finalized(s1, "stuck"), .timer(s1, .deliver)], phase: .idle,
+            events: finalizing + final(s1, "stuck") + [.timer(s1, .deliver)], phase: .idle,
             effects: [.copyToPasteboard("Stuck"), .showHUD(.result(.copied)), .endSession(s1)]),
         Row(name: "delivery timer after delivery is ignored",
-            events: finalizing + [.finalized(s1, "ok"), .delivered(s1, .inserted), .timer(s1, .deliver)],
+            events: finalizing + final(s1, "ok") + [.delivered(s1, .inserted), .timer(s1, .deliver)],
             phase: .idle, effects: []),
         Row(name: "quit while idle does nothing", events: [.quit], phase: .idle, effects: []),
         Row(name: "quit while finalizing cancels the transcriber", events: finalizing + [.quit], phase: .idle, effects: teardown),
@@ -119,7 +129,7 @@ struct ReducerTests {
         Row(name: "device change from an earlier session is ignored",
             events: listening + [.cancel, .pressed(at: ms(3000)), .deviceChanged(s1)], phase: .arming, effects: []),
         Row(name: "sleep while delivering copies the literal",
-            events: finalizing + [.finalized(s1, "keep me"), .systemSleep], phase: .idle,
+            events: finalizing + final(s1, "keep me") + [.systemSleep], phase: .idle,
             effects: [.copyToPasteboard("Keep me")] + teardown),
     ]
 
@@ -150,7 +160,8 @@ struct ReducerTests {
         let s2 = SessionID(2)
         // Session 1's finalize hangs and is abandoned; session 2 reaches finalizing;
         // then session 1's final finally arrives.
-        let first = finalizing + [.partial(s1, "slow"), .timer(s1, .finalize), .delivered(s1, .inserted)]
+        let first = finalizing + [.partial(s1, "slow"), .timer(s1, .finalize), .literalReady(s1, "Slow"),
+                                  .delivered(s1, .inserted)]
         let second: [SessionEvent] = [.pressed(at: ms(10_000)), .timer(s2, .hold), .audioPeak(s2, dBFS: -20),
                                       .released(at: ms(12_000))]
         let (before, _) = run(first + second)
@@ -159,7 +170,8 @@ struct ReducerTests {
         #expect(after == before)
         #expect(effects.isEmpty)
         #expect(after.literal == "Slow")
-        let (_, delivered) = reduce(after, .finalized(s2, "new text"))
+        let (_, delivered) = run([.finalized(s2, "new text"), .literalReady(s1, "Old text"), .literalReady(s2, "New text")],
+                                 from: after)
         #expect(delivered == [.deliver(s2, "New text"), .startTimer(s2, .deliver, after: Constants.deliver)])
     }
 
@@ -170,7 +182,7 @@ struct ReducerTests {
     }
 
     @Test func literalSurvivesTheNextSession() {
-        let (state, _) = run(finalizing + [.finalized(s1, "first"), .delivered(s1, .inserted), .pressed(at: ms(5000))])
+        let (state, _) = run(finalizing + final(s1, "first") + [.delivered(s1, .inserted), .pressed(at: ms(5000))])
         #expect(state.literal == "First")
     }
 
@@ -197,14 +209,15 @@ struct ReducerTests {
         let s2 = SessionID(2)
         let second: [SessionEvent] = [.pressed(at: ms(10_000)), .timer(s2, .hold), .audioPeak(s2, dBFS: -20),
                                       .released(at: ms(12_000)), .partial(s2, "keep this"), .timer(s2, .finalize)]
-        let (state, effects) = run(listening + [.timer(s1, .sttStart)] + second)
+        let (state, effects) = run(listening + [.timer(s1, .sttStart)] + second + [.literalReady(s2, "Keep this")])
         #expect(effects.contains(.deliver(s2, "Keep this")))
         let (_, done) = reduce(state, .delivered(s2, .inserted))
         #expect(done == [.showHUD(.error(.restart)), .endSession(s2)])
     }
 
     @Test func partialFallbackReportsSlowTranscription() {
-        let (_, effects) = run(finalizing + [.partial(s1, "slow"), .timer(s1, .finalize), .delivered(s1, .inserted)])
+        let (_, effects) = run(finalizing + [.partial(s1, "slow"), .timer(s1, .finalize), .literalReady(s1, "Slow"),
+                                             .delivered(s1, .inserted)])
         #expect(effects == [.showHUD(.result(.finalize)), .endSession(s1)])
     }
 
@@ -246,7 +259,10 @@ struct ReducerTests {
                 guard let id = state.current else { break }
                 switch state.phase {
                 case .arming, .listening: step(.released(at: ms(now + 10_000)))
-                case .finalizing: step(.timer(id, .finalize))
+                case .finalizing:
+                    step(state.preparingLiteral ? .literalReady(id, "Final") : .timer(id, .finalize))
+                case .rewriting: step(.timer(id, .rewrite))
+                case .awaitingAcceptance: step(.preview(id, .cancel))
                 case .delivering: step(.delivered(id, .inserted))
                 case .idle: break
                 }
@@ -258,8 +274,9 @@ struct ReducerTests {
     }
 
     private func randomEvent(_ rng: inout SplitMix64, id: SessionID, at: KeyTime) -> SessionEvent {
-        let kinds: [TimerKind] = [.hold, .sttStart, .cap, .finalize, .keyPoll, .deliver]
-        switch rng.next(upTo: 22) {
+        let kinds: [TimerKind] = [.hold, .sttStart, .cap, .finalize, .keyPoll, .deliver, .rewrite]
+        let actions: [PreviewAction] = [.insert("edited words here now"), .insertLiteral, .copy("copied"), .cancel]
+        switch rng.next(upTo: 27) {
         case 0, 1: return .pressed(at: at)
         case 2, 3: return .released(at: at)
         case 4: return .chord
@@ -278,6 +295,11 @@ struct ReducerTests {
         case 17: return .micPermission(granted: true)
         case 18: return .modelStatus(rng.next(upTo: 2) == 0 ? .installed : .downloading(percent: 50))
         case 19: return rng.next(upTo: 10) == 0 ? .quit : .systemSleep
+        case 20: return .literalReady(id, rng.next(upTo: 3) == 0 ? "" : "one two three four five")
+        case 21: return .rewritten(id, rng.next(upTo: 3) == 0 ? nil : "One two three four, five.")
+        case 22: return .rewritten(id, "Totally different words here")
+        case 23: return .preview(id, actions[rng.next(upTo: actions.count)])
+        case 24: return .rewriteSettings(mode: RewriteMode.allCases[rng.next(upTo: 3)], alwaysPreview: rng.next(upTo: 2) == 0)
         default: return .delivered(id, .copied(.noField))
         }
     }

@@ -163,6 +163,6 @@ struct DelivererTests {
     }
 
     @Test func layoutWithoutVFallsBackToANSI() {
-        #expect(pasteKeyCode(in: [:]) == 9)
+        #expect(keyCode(for: "v", in: [:]) == 9)
     }
 }

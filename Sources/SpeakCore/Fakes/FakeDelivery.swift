@@ -17,6 +17,13 @@ public final class FakeDeliveryEnvironment: DeliveryEnvironment {
         public var modifierPolls = 0
         public var layout: [UInt16: Character] = [9: "v"]
         public var pastes: [UInt16] = []
+        public var undos: [UInt16] = []
+        /// What `activate` does: bring that PID to the front, or ignore the request.
+        public var activationWorks = true
+        public var activations: [Int32] = []
+        /// Accessibility text and selection lengths of the focused field (nil = unreadable).
+        public var textLength: Int? = 10
+        public var selectionLength: Int? = 0
         public init() {}
     }
 
@@ -40,6 +47,20 @@ public final class FakeDeliveryEnvironment: DeliveryEnvironment {
         guard pasteHold.withLock({ $0.enabled }) else { return }
         await withCheckedContinuation { continuation in pasteHold.withLock { $0.waiting.append(continuation) } }
     }
+
+    public func postUndo(keyCode: UInt16) async { world.withLock { $0.undos.append(keyCode) } }
+    public var undos: [UInt16] { world.withLock { $0.undos } }
+    public var activations: [Int32] { world.withLock { $0.activations } }
+
+    public func activate(pid: Int32) async {
+        world.withLock { w in
+            w.activations.append(pid)
+            if w.activationWorks { w.frontmostPID = pid }
+        }
+    }
+
+    public func textLength(of element: ElementRef) async -> Int? { world.withLock { $0.textLength } }
+    public func selectionLength(of element: ElementRef) async -> Int? { world.withLock { $0.selectionLength } }
 
     public func holdPastes() { pasteHold.withLock { $0.enabled = true } }
     public var heldPastes: Int { pasteHold.withLock { $0.waiting.count } }

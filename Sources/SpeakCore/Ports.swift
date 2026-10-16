@@ -68,8 +68,9 @@ public enum TranscriberEvent: Equatable, Sendable {
 }
 
 public protocol Transcriber: Sendable {
-    /// Creates a fresh single-use session reading `frames`.
-    func start(frames: AsyncStream<AudioFrames>,
+    /// Creates a fresh single-use session reading `frames`. `contextualStrings`
+    /// are words the recognizer should expect (the user's dictionary).
+    func start(frames: AsyncStream<AudioFrames>, contextualStrings: [String],
                onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession
 }
 
@@ -125,6 +126,14 @@ public protocol DeliveryEnvironment: Sendable {
     /// What each keycode types in the current layout (for finding "v").
     func keyboardLayout() async -> [UInt16: Character]
     func postPaste(keyCode: UInt16) async
+    /// Posts ⌘Z (with the layout's "z" keycode).
+    func postUndo(keyCode: UInt16) async
+    /// Asks the app to come to the front. Doesn't wait for it.
+    func activate(pid: Int32) async
+    /// The element's text length in UTF-16 units, if Accessibility can read it.
+    func textLength(of element: ElementRef) async -> Int?
+    /// The selected text's length in UTF-16 units, if readable.
+    func selectionLength(of element: ElementRef) async -> Int?
 }
 
 public enum PasteboardWrite: Equatable, Sendable {
