@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Build
+        run: swift build
+      - name: Test (fakes only; no mic, Apple Intelligence, or permissions on the runner)
+        run: scripts/test.sh
+      - name: Privacy check (no network APIs, no text in public logs)
+        run: scripts/check-privacy.sh
