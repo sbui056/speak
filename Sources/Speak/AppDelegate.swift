@@ -10,6 +10,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var dictionary = DictionaryWindowController(dictionary: app.dictionary, history: app.history)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if let corpus = Corpus(environment: ProcessInfo.processInfo.environment) {
+            Task { await corpus.run(); exit(0) }
+            return
+        }
+        #endif
         MainMenu.install()
         let settings = self.settings
         let dictionary = self.dictionary
