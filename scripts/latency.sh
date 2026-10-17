@@ -1,12 +1,13 @@
 #!/bin/sh
 # Prints release-to-text latency (median and p90) per mode from Speak's own
 # timing log lines, the median of each stage, and the memory footprint.
-# Usage: scripts/latency.sh [window], e.g. 3d (default 7d).
+# Usage: scripts/latency.sh [window], e.g. 3d (default 7d). Only the bundled app
+# counts, so soak runs of the debug build (scripts/soak.sh) never skew it.
 # Previewed rewrites are listed separately: they stop the clock when the preview
 # opens, and what happens after the user accepts is reported as "handoff".
 set -eu
 window=${1:-7d}
-/usr/bin/log show --last "$window" --predicate 'subsystem == "io.github.sbui056.speak" AND category == "session"' 2>/dev/null |
+/usr/bin/log show --last "$window" --predicate 'subsystem == "io.github.sbui056.speak" AND category == "session" AND processImagePath ENDSWITH ".app/Contents/MacOS/Speak"' 2>/dev/null |
   awk -v window="$window" '
     function sort(a, n,   i, j, t) {
       for (i = 2; i <= n; i++) { t = a[i]; for (j = i - 1; j >= 1 && a[j] > t; j--) a[j + 1] = a[j]; a[j + 1] = t }
