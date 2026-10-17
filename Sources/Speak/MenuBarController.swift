@@ -9,12 +9,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let app: AppModel
     private let openSettings: () -> Void
     private let openDictionary: () -> Void
+    private let openHistory: () -> Void
     private var shownIcon: MenuIcon?
 
-    init(app: AppModel, openSettings: @escaping () -> Void, openDictionary: @escaping () -> Void) {
+    init(app: AppModel, openSettings: @escaping () -> Void, openDictionary: @escaping () -> Void,
+         openHistory: @escaping () -> Void) {
         self.app = app
         self.openSettings = openSettings
         self.openDictionary = openDictionary
+        self.openHistory = openHistory
         super.init()
         statusItem.button?.setAccessibilityLabel("Speak")
         let menu = NSMenu()
@@ -67,6 +70,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(modeItem())
         menu.addItem(item("Dictionary…", #selector(dictionaryClicked)))
+        if app.historyOn {
+            menu.addItem(item("History…", #selector(historyClicked)))
+        }
         menu.addItem(.separator())
 
         menu.addItem(item("Settings…", #selector(settingsClicked), key: ","))
@@ -148,6 +154,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func dictionaryClicked() { openDictionary() }
+    @objc private func historyClicked() { openHistory() }
     @objc private func relaunch() { app.relaunch() }
     @objc private func settingsClicked() { openSettings() }
 }

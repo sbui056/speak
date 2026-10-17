@@ -51,6 +51,7 @@ After you grant Input Monitoring, Speak asks to relaunch once, because macOS onl
 | Change mode / Show preview | Menu bar icon → **Mode** |
 | Undo the last paste | Menu bar icon → **Undo insert** (within 30 s) |
 | Paste or copy the last transcript | Menu bar icon |
+| See your history (when it's on) | Menu bar icon → **History…** |
 
 In Settings you can choose the shortcut key and the language, see Apple Intelligence status, turn history on or off, set launch at login, copy diagnostics, and try a test dictation.
 

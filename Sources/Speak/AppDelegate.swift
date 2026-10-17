@@ -6,13 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private var hud: HUDPanelController?
     private var preview: PreviewPanelController?
-    private lazy var settings = SettingsWindowController(app: app)
+    private lazy var settings = SettingsWindowController(app: app, openHistory: { [unowned self] in dictionary.show(.history) })
     private lazy var dictionary = DictionaryWindowController(dictionary: app.dictionary, history: app.history)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = self.settings
         let dictionary = self.dictionary
-        menuBar = MenuBarController(app: app, openSettings: { settings.show() }, openDictionary: { dictionary.show() })
+        menuBar = MenuBarController(app: app, openSettings: { settings.show() }, openDictionary: { dictionary.show() },
+                                    openHistory: { dictionary.show(.history) })
         hud = HUDPanelController(controller: app.controller, openSettings: { settings.show() })
         preview = PreviewPanelController(controller: app.controller)
         Task {

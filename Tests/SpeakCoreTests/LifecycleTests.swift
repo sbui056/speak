@@ -66,6 +66,20 @@ struct LifecycleTests {
         #expect(h.controller.lastTranscript == nil) // a test isn't a dictation
     }
 
+    @Test func settingsTestTypesIntoSpeaksOwnField() async {
+        let h = Harness()
+        h.env.update { $0.frontmostPID = nil } // the Settings window is in front
+        #expect(await h.controller.insertIntoOwnField("Speak can type here.") == .inserted)
+        #expect(h.env.pastes.count == 1)
+        #expect(h.hud == .result(.inserted))
+    }
+
+    @Test func pasteLastNeverTargetsSpeakItself() async {
+        let h = Harness()
+        h.env.update { $0.frontmostPID = nil }
+        #expect(await h.controller.insert("Hi") == .copied(.appChanged))
+    }
+
     @Test func tapIsSilent() async {
         let h = Harness()
         await h.hold(for: .milliseconds(100))

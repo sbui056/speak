@@ -25,6 +25,16 @@ extension SessionController {
         return outcome
     }
 
+    /// Types `text` into Speak's own focused field (Settings → Test) through the
+    /// same delivery rules, except that Speak itself is the target.
+    @discardableResult
+    public func insertIntoOwnField(_ text: String) async -> DeliveryOutcome {
+        let context = await deliverer.captureOwnFieldContext()
+        let outcome = await deliverer.deliver(text, context: context)
+        show(outcome)
+        return outcome
+    }
+
     /// The last paste can be undone now: still within the undo window, same app and field.
     public func undoIsSafe() async -> Bool {
         await deliverer.canUndo ? await deliverer.undoIsSafe() : false

@@ -20,6 +20,8 @@ public struct DeliverySnapshot: Equatable, Sendable {
     public var focus: FocusQuery
     /// Modifier keys were still down after the wait.
     public var modifiersHeld: Bool
+    /// Speak's own Settings test field is the target, so Speak must still be frontmost.
+    public var ownField = false
 
     public init(text: String, accessibilityTrusted: Bool, secureInput: Bool, pressPID: Int32?,
                 frontmostPID: Int32?, focus: FocusQuery, modifiersHeld: Bool) {
@@ -46,7 +48,8 @@ public func evaluateDelivery(_ s: DeliverySnapshot) -> DeliveryDecision {
     if s.text.allSatisfy(\.isWhitespace) { return .nothing }
     if !s.accessibilityTrusted { return .copy(reason: .accessibility, concealed: false) }
     if s.secureInput { return .copy(reason: .secure, concealed: true) }
-    if s.pressPID == nil || s.frontmostPID != s.pressPID { return .copy(reason: .appChanged, concealed: false) }
+    let appChanged = s.ownField ? s.frontmostPID != nil : s.pressPID == nil || s.frontmostPID != s.pressPID
+    if appChanged { return .copy(reason: .appChanged, concealed: false) }
     switch s.focus {
     case .none: return .copy(reason: .noField, concealed: false)
     case .element(sameAsAtPress: false): return .copy(reason: .focusChanged, concealed: false)

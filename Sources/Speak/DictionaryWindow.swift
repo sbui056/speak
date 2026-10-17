@@ -8,15 +8,18 @@ final class DictionaryWindowController {
     private var window: NSWindow?
     private let dictionary: DictionaryModel
     private let history: HistoryModel
+    private let tab = DictionaryTab()
 
     init(dictionary: DictionaryModel, history: HistoryModel) {
         self.dictionary = dictionary
         self.history = history
     }
 
-    func show() {
+    func show(_ which: DictionaryTab.Which = .dictionary) {
+        tab.selected = which
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: DictionaryTabs(dictionary: dictionary, history: history)))
+            let root = DictionaryTabs(dictionary: dictionary, history: history, tab: tab)
+            let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "Speak Dictionary"
             window.styleMask = [.titled, .closable, .resizable]
             window.isReleasedWhenClosed = false
@@ -31,16 +34,24 @@ final class DictionaryWindowController {
     }
 }
 
+/// Which tab the window shows, so the menu's History… can open it on History.
+@MainActor @Observable
+final class DictionaryTab {
+    enum Which: Hashable { case dictionary, history }
+    var selected = Which.dictionary
+}
+
 /// Terms, plus History while history is on.
 private struct DictionaryTabs: View {
     let dictionary: DictionaryModel
     let history: HistoryModel
+    @Bindable var tab: DictionaryTab
 
     var body: some View {
         if history.isOn {
-            TabView {
-                DictionaryView(model: dictionary).tabItem { Text("Dictionary") }
-                HistoryView(model: history).tabItem { Text("History") }
+            TabView(selection: $tab.selected) {
+                DictionaryView(model: dictionary).tabItem { Text("Dictionary") }.tag(DictionaryTab.Which.dictionary)
+                HistoryView(model: history).tabItem { Text("History") }.tag(DictionaryTab.Which.history)
             }
         } else {
             DictionaryView(model: dictionary)

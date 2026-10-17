@@ -8,14 +8,16 @@ import SwiftUI
 final class SettingsWindowController {
     private var window: NSWindow?
     private let app: AppModel
+    private let openHistory: () -> Void
 
-    init(app: AppModel) {
+    init(app: AppModel, openHistory: @escaping () -> Void) {
         self.app = app
+        self.openHistory = openHistory
     }
 
     func show() {
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(app: app)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(app: app, openHistory: openHistory)))
             window.title = "Speak Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
@@ -35,6 +37,7 @@ final class SettingsWindowController {
 
 struct SettingsView: View {
     @Bindable var app: AppModel
+    let openHistory: () -> Void
     @State private var confirmDelete = false
     @State private var testText = ""
     @State private var copiedDiagnostics = false
@@ -108,13 +111,15 @@ struct SettingsView: View {
                     Text("Off").tag(false)
                     Text("Last \(Constants.historyMax)").tag(true)
                 }
-                Text("Keeps the text of your recent dictations on this Mac, never audio. See it in the Dictionary window.")
+                Text("Keeps the text of your recent dictations on this Mac, never audio. Open it from the Speak menu → History….")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
                     Text(app.history.entries.isEmpty ? "No history saved" : "\(app.history.entries.count) saved")
                         .foregroundStyle(.secondary)
                     Spacer()
+                    Button("Show history") { openHistory() }
+                        .disabled(!app.historyOn)
                     Button("Delete all history…") { confirmDelete = true }
                         .disabled(app.history.entries.isEmpty)
                 }
@@ -155,7 +160,7 @@ struct SettingsView: View {
             }
 
             Section("Test") {
-                TextField("Click Test dictation, or dictate here", text: $testText, axis: .vertical)
+                TextField("Click Test dictation", text: $testText, axis: .vertical)
                     .lineLimit(2...4)
                     .focused($testFocused)
                 HStack {
@@ -176,7 +181,7 @@ struct SettingsView: View {
         Task {
             // Let the field take focus before the paste looks for it.
             try? await Task.sleep(for: .milliseconds(150))
-            let outcome = await app.controller.insert("Speak can type here.")
+            let outcome = await app.controller.insertIntoOwnField("Speak can type here.")
             Log.insert.info("test dictation \(String(describing: outcome), privacy: .public)")
         }
     }

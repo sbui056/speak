@@ -139,6 +139,14 @@ struct DelivererTests {
         #expect(await deliverer.deliver("Hi", context: context) == .copied(.appChanged))
     }
 
+    @Test func ownTestFieldPastesWhileSpeakIsFrontmostWithoutAnUndoOffer() async {
+        env.update { $0.frontmostPID = nil }
+        let d = deliverer
+        #expect(await d.deliver("Hi", context: await d.captureOwnFieldContext()) == .inserted)
+        #expect(env.pastes.count == 1)
+        #expect(await d.canUndo == false) // ⌘Z later could land in whatever app is in front
+    }
+
     @Test func noFocusedFieldCopies() async {
         let context = await pressContext()
         env.update { $0.focus = .none }

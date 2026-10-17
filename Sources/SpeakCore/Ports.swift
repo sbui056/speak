@@ -118,9 +118,12 @@ public struct PressContext: Sendable {
     /// Nil when Speak itself was frontmost.
     public var pid: Int32?
     public var focus: FocusedElement
-    public init(pid: Int32?, focus: FocusedElement) {
+    /// The target is Speak's own Settings test field, the one place Speak types into itself.
+    public var ownField: Bool
+    public init(pid: Int32?, focus: FocusedElement, ownField: Bool = false) {
         self.pid = pid
         self.focus = focus
+        self.ownField = ownField
     }
 }
 

@@ -31,6 +31,11 @@ public actor Deliverer {
         PressContext(pid: await env.frontmostPID(), focus: await env.focusedElement())
     }
 
+    /// The Settings test field: Speak is frontmost, and that's the target.
+    public func captureOwnFieldContext() async -> PressContext {
+        PressContext(pid: nil, focus: await env.focusedElement(), ownField: true)
+    }
+
     /// Pastes or copies `text`. Cancelling the caller before the write abandons it.
     /// `modifierWait` is how long held modifier keys may delay the paste.
     public func deliver(_ text: String, context: PressContext?,
@@ -108,7 +113,7 @@ public actor Deliverer {
         await restorePending()
         let modifiersHeld = await waitForModifiers(upTo: modifierWait)
         let focusNow = await env.focusedElement()
-        let snapshot = DeliverySnapshot(
+        var snapshot = DeliverySnapshot(
             text: text,
             accessibilityTrusted: await env.accessibilityTrusted(),
             secureInput: await env.secureInputActive(focusNow),
@@ -116,6 +121,7 @@ public actor Deliverer {
             frontmostPID: await env.frontmostPID(),
             focus: await compare(focusNow, with: context?.focus),
             modifiersHeld: modifiersHeld)
+        snapshot.ownField = context?.ownField ?? false
 
         // The session ended (sleep, quit) while we waited: touch nothing.
         if Task.isCancelled { return .empty }
