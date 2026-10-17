@@ -15,7 +15,7 @@ extension SessionController {
     }
 
     /// Pastes `text` into the frontmost app's field the way a dictation would; for
-    /// Paste last and Settings → Test dictation.
+    /// Paste last and Settings → Type sample.
     @discardableResult
     public func insert(_ text: String) async -> DeliveryOutcome {
         // Opening the menu doesn't activate Speak, so the target is whatever is frontmost now.

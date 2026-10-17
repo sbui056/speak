@@ -159,15 +159,15 @@ private struct SettingsView: View {
                 }
             }
 
-            Section("Test") {
-                TextField("Click Test dictation", text: $testText, axis: .vertical)
+            Section("Test typing") {
+                TextField("The sample sentence appears here", text: $testText, axis: .vertical)
                     .lineLimit(2...4)
                     .focused($testFocused)
                 HStack {
-                    Text("Types a sample sentence here the way Speak types into other apps. It doesn't use the microphone; to test your voice, dictate into any other app.")
+                    Text("Types the fixed sentence “\(Self.testSample)” into this box, the same way Speak types into other apps. It doesn't listen to you. To check your voice, hold the shortcut and talk in any other app.")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Test dictation") { runTest() }
+                    Button("Type sample") { runTest() }
                 }
             }
         }
@@ -176,12 +176,15 @@ private struct SettingsView: View {
         .frame(width: 480, height: 640)
     }
 
+    /// Always the same words: the test checks typing, not the microphone or recognition.
+    private static let testSample = "Speak can type here."
+
     private func runTest() {
         testFocused = true
         Task {
             // Let the field take focus before the paste looks for it.
             try? await Task.sleep(for: .milliseconds(150))
-            let sample = "Speak can type here."
+            let sample = Self.testSample
             let outcome = await app.controller.insertIntoOwnField(sample)
             // "Inserted" means ⌘V was sent; check the field really received it.
             try? await Task.sleep(for: .milliseconds(300))

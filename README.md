@@ -52,7 +52,7 @@ After you grant Input Monitoring, Speak asks to relaunch once, because macOS onl
 | Add names and jargon | Menu bar icon → **Dictionary…** |
 | See your history (when it's on) | Menu bar icon → **History…** |
 
-In Settings you can check permissions, choose the shortcut key and the language, see Apple Intelligence status, set Show preview, turn history on or off, set launch at login, copy diagnostics, and try a test dictation.
+In Settings you can check permissions, choose the shortcut key and the language, see Apple Intelligence status, set Show preview, turn history on or off, set launch at login, copy diagnostics, and check that Speak can type (it types a fixed sample sentence; it doesn't use the microphone).
 
 ## Privacy
 
