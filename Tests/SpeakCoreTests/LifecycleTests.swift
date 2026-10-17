@@ -284,7 +284,11 @@ struct LifecycleTests {
         await h.clock.advance(by: .milliseconds(50))
         // Finish starts newest-first: if starts weren't ordered across sessions,
         // session 1's late stop would close session 2's engine.
-        for _ in 0..<4 {
+        // Starts run one at a time, so each gate appears only after the previous
+        // one opened. Wait for each instead of opening a fixed number of times:
+        // on a slow runner a gate could arrive after the loop and never open.
+        for _ in 0..<2 {
+            #expect(await eventually { h.audio.waitingStarts > 0 })
             h.audio.openNewestGate()
             await settle()
         }
