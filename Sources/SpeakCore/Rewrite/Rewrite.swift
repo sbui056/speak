@@ -81,7 +81,8 @@ public struct RewritePrompt: Equatable, Sendable {
 
 public protocol Rewriter: Sendable {
     func availability() async -> RewriteAvailability
-    /// Loads the model ahead of a likely rewrite. Best effort.
+    /// Loads the model and reads the instructions ahead of a likely rewrite,
+    /// into a fresh session that only the next rewrite uses. Best effort.
     func prewarm(instructions: String) async
     /// The model's raw reply. Throws `RewriteError`.
     func respond(to prompt: RewritePrompt) async throws -> RewriteReply
@@ -131,12 +132,21 @@ public func rewriteInstructions(_ mode: RewriteMode, terms: [String]) -> String 
         """
 }
 
+/// How every rewrite prompt starts, so a prepared session can read it ahead.
+public let transcriptPrefix = "<transcript>"
+
 /// Builds the prompt with the injection guard: angle brackets are stripped so
 /// dictated text can't close the transcript tag or forge a result block.
 public func buildRewritePrompt(_ literal: String, mode: RewriteMode, terms: [String]) -> RewritePrompt {
     RewritePrompt(instructions: rewriteInstructions(mode, terms: terms),
-                  prompt: "<transcript>\(stripAngleBrackets(literal))</transcript>",
-                  maxResponseTokens: wordCount(literal) * 3 + 40)
+                  prompt: "\(transcriptPrefix)\(stripAngleBrackets(literal))</transcript>",
+                  maxResponseTokens: maxResponseTokens(words: wordCount(literal), mode: mode))
+}
+
+/// Room for the longest reply the guard would accept (`C-RATIO`), at about two
+/// tokens a word, plus the tags.
+func maxResponseTokens(words: Int, mode: RewriteMode) -> Int {
+    Int((Double(words) * mode.ratio.upperBound * 2).rounded(.up)) + 20
 }
 
 private func stripAngleBrackets(_ text: String) -> String {

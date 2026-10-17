@@ -30,8 +30,12 @@ struct Corpus {
         let rewriter = FoundationRewriter()
         guard await rewriter.availability() == .available else { return print("corpus: model unavailable") }
         for mode in [RewriteMode.concise, .polished] {
-            await rewriter.prewarm(instructions: rewriteInstructions(mode, terms: []))
-            for c in cases { print(await result(c, mode, rewriter)); fflush(stdout) }
+            for c in cases {
+                // As in a session: prepared at key press, asked after the speech.
+                await rewriter.prewarm(instructions: rewriteInstructions(mode, terms: c.terms ?? []))
+                try? await Task.sleep(for: .seconds(1))
+                print(await result(c, mode, rewriter)); fflush(stdout)
+            }
         }
     }
 

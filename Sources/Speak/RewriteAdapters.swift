@@ -1,10 +1,15 @@
 import AppKit
 import FoundationModels
 import SpeakCore
+import Synchronization
 
 /// Concise and Polished with Apple's on-device model. A fresh session per
 /// rewrite, so nothing from one dictation can leak into the next.
 final class FoundationRewriter: Rewriter {
+    /// Made at key press and used by the next rewrite only, so the model has
+    /// already read the instructions by the time the transcript arrives.
+    private let ready = Mutex<(instructions: String, session: LanguageModelSession)?>(nil)
+
     func availability() async -> RewriteAvailability {
         switch SystemLanguageModel.default.availability {
         case .available: return .available
@@ -16,11 +21,21 @@ final class FoundationRewriter: Rewriter {
 
     func prewarm(instructions: String) async {
         guard SystemLanguageModel.default.isAvailable else { return }
-        LanguageModelSession(model: .default, tools: [], instructions: instructions).prewarm(promptPrefix: nil)
+        let session = LanguageModelSession(model: .default, tools: [], instructions: instructions)
+        session.prewarm(promptPrefix: Prompt(transcriptPrefix))
+        ready.withLock { $0 = (instructions, session) }
     }
 
     func respond(to prompt: RewritePrompt) async throws -> RewriteReply {
-        let session = LanguageModelSession(model: .default, tools: [], instructions: prompt.instructions)
+        // Taken, never put back: a session answers one dictation only. One made
+        // for other instructions (the mode or dictionary changed) is dropped.
+        let prepared = ready.withLock { ready in
+            defer { ready = nil }
+            return ready
+        }
+        let session = prepared?.instructions == prompt.instructions ? prepared!.session
+            : LanguageModelSession(model: .default, tools: [], instructions: prompt.instructions)
+        Log.rewrite.info("rewrite session prepared=\(prepared?.instructions == prompt.instructions, privacy: .public)")
         let started = ContinuousClock.now
         do {
             // Greedy: a cleanup should be repeatable, not creative.
