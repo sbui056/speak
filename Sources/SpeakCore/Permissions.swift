@@ -61,15 +61,17 @@ public final class PermissionsModel {
     }
 
     public func refresh() async {
+        // Read everything first, then apply in one step: an await between updates
+        // would let observers see "all granted" before `needsRelaunch` is set.
+        var latest: [Permission: Bool] = [:]
         for permission in Permission.allCases {
-            let now = await checker.isGranted(permission)
-            if granted[permission] != now {
-                granted[permission] = now
-                onChange?(permission, now)
-            }
+            latest[permission] = await checker.isGranted(permission)
         }
+        let changed = Permission.allCases.filter { granted[$0] != latest[$0] }
+        granted = latest
         if inputMonitoringAtLaunch == nil { inputMonitoringAtLaunch = granted[.inputMonitoring] }
         if inputMonitoringAtLaunch == false, granted[.inputMonitoring] == true { needsRelaunch = true }
+        for permission in changed { onChange?(permission, latest[permission] == true) }
         pollWhileMissing()
     }
 

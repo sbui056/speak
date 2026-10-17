@@ -16,6 +16,18 @@ struct PermissionsTests {
         #expect(model.needsRelaunch)
     }
 
+    @Test func changesAreReportedOnlyOnceTheStateIsConsistent() async {
+        let checker = FakePermissionChecker(granted: [.microphone, .accessibility])
+        let model = PermissionsModel(checker: checker, clock: TestClock())
+        await model.refresh()
+        var seen: [(allGranted: Bool, needsRelaunch: Bool)] = []
+        model.onChange = { _, _ in seen.append((model.allGranted, model.needsRelaunch)) }
+        checker.set(.inputMonitoring, granted: true)
+        await model.refresh()
+        #expect(seen.count == 1)
+        #expect(seen.allSatisfy { $0.allGranted && $0.needsRelaunch })
+    }
+
     @Test func grantedAtLaunchNeedsNoRelaunch() async {
         let model = PermissionsModel(checker: FakePermissionChecker(), clock: TestClock())
         await model.refresh()
