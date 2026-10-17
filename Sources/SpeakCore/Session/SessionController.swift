@@ -28,6 +28,8 @@ public final class SessionController {
     @ObservationIgnored public var onFinished: ((String) -> Void)?
     /// Called when the model's reply failed validation, for logging. Never sees text.
     @ObservationIgnored public var onRewriteRejected: ((RewriteMode) -> Void)?
+    /// Called at each timed milestone of the current dictation. Never sees text.
+    @ObservationIgnored public var onStage: ((SessionStage) -> Void)?
     /// Called after every transition, for logging. Never sees transcript text.
     @ObservationIgnored public var onTransition: ((Phase, Phase, SessionID?) -> Void)?
     /// The key the poll asks about when a key-up may have been lost.
@@ -119,9 +121,22 @@ public final class SessionController {
         let (next, effects) = reduce(state, event)
         state = next
         if case .delivered(let id, let outcome) = event, id == before.current { onDelivered?(outcome) }
+        reportStage(event, before: before)
         reportFinished(event, before: before)
         if before.phase != next.phase { onTransition?(before.phase, next.phase, before.current ?? next.current) }
         for effect in effects { perform(effect) }
+    }
+
+    /// Finalize and cleanup, as the reducer accepts them. Rewrites and deliveries
+    /// report from their own tasks, which know the model's and the paste's times.
+    private func reportStage(_ event: SessionEvent, before: SessionState) {
+        switch event {
+        case .finalized(let id, _) where id == before.current && before.phase == .finalizing:
+            onStage?(.finalized)
+        case .literalReady(let id, _) where id == before.current && before.preparingLiteral:
+            onStage?(.literalReady)
+        default: break
+        }
     }
 
     /// A delivery finished (inserted, or copied as a fallback), or the preview's Copy was chosen.
@@ -197,15 +212,21 @@ public final class SessionController {
             guard let rt = runtime(id) else { return }
             let press = rt.press
             let deliverer = self.deliverer
+            let clock = self.clock
             let returnToApp = if case .handoff = effect { true } else { false }
             // Tracked, so sleep or quit mid-delivery cancels the paste.
             rt.cancellable.append(Task { [weak self] in
                 let context = await press?.value
                 // After the preview, the app the user dictated into comes back first.
                 // If it doesn't, the delivery rules see the app change and copy instead.
-                if returnToApp, let pid = context?.pid { await deliverer.activate(pid) }
-                let outcome = await deliverer.deliver(text, context: context,
-                                                      modifierWait: returnToApp ? Constants.handoffModWait : Constants.modWait)
+                var activate: Duration?
+                if returnToApp, let pid = context?.pid {
+                    activate = await clock.measure { await deliverer.activate(pid) }
+                }
+                var (outcome, timings) = await deliverer.deliverTimed(
+                    text, context: context, modifierWait: returnToApp ? Constants.handoffModWait : Constants.modWait)
+                timings.activate = activate ?? (returnToApp ? .zero : nil)
+                self?.onStage?(.delivered(timings))
                 self?.send(.delivered(id, outcome))
             })
         case .copyToPasteboard(let text):
@@ -231,9 +252,14 @@ public final class SessionController {
         return Task { [weak self] in
             let prompt = buildRewritePrompt(literal, mode: mode, terms: terms)
             var accepted: String?
-            if let reply = try? await rewriter.respond(to: prompt) {
-                accepted = validateRewrite(reply, literal: literal, mode: mode, terms: terms)
+            let reply = try? await rewriter.respond(to: prompt)
+            if let reply {
+                accepted = validateRewrite(reply.text, literal: literal, mode: mode, terms: terms)
                 if accepted == nil { self?.onRewriteRejected?(mode) }
+            }
+            // A reply after the watchdog gave up belongs to no timed dictation.
+            if let self, state.current == id, state.phase == .rewriting {
+                onStage?(.rewritten(firstToken: reply?.firstToken))
             }
             self?.send(.rewritten(id, accepted))
         }

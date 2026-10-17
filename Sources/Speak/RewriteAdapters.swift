@@ -19,15 +19,21 @@ final class FoundationRewriter: Rewriter {
         LanguageModelSession(model: .default, tools: [], instructions: instructions).prewarm(promptPrefix: nil)
     }
 
-    func respond(to prompt: RewritePrompt) async throws -> String {
+    func respond(to prompt: RewritePrompt) async throws -> RewriteReply {
         let session = LanguageModelSession(model: .default, tools: [], instructions: prompt.instructions)
         let started = ContinuousClock.now
         do {
             // Greedy: a cleanup should be repeatable, not creative.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: prompt.maxResponseTokens)
-            let reply = try await session.respond(to: prompt.prompt, options: options)
+            // Streamed only to learn when the first token arrives (prompt processing vs. generation).
+            var firstToken: Duration?
+            var content = ""
+            for try await snapshot in session.streamResponse(to: prompt.prompt, options: options) {
+                if firstToken == nil { firstToken = ContinuousClock.now - started }
+                content = snapshot.content
+            }
             Log.rewrite.info("rewrite replied in \(ContinuousClock.now - started, privacy: .public)")
-            return reply.content
+            return RewriteReply(content, firstToken: firstToken)
         } catch let error as LanguageModelSession.GenerationError {
             let mapped = Self.map(error)
             Log.rewrite.error("rewrite failed \(String(describing: mapped), privacy: .public) after \(ContinuousClock.now - started, privacy: .public)")

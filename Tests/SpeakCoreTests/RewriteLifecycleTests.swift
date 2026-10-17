@@ -188,4 +188,30 @@ struct RewriteLifecycleTests {
                                              terms: ["Siobhan", "Kubernetes"]))
         #expect(h.controller.preview?.literal == "Ask Siobhan about Kubernetes today please")
     }
+
+    @Test func stagesAreReportedInOrderThenTheHandoffHasItsOwn() async {
+        let h = polished()
+        var stages: [SessionStage] = []
+        h.controller.onStage = { stages.append($0) }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.controller.preview != nil })
+        #expect(stages == [.finalized, .literalReady, .rewritten(firstToken: nil)])
+
+        h.controller.choose(.insertLiteral)
+        #expect(await eventually { h.phase == .idle })
+        guard case .delivered(let timings)? = stages.last else { Issue.record("no delivery stage"); return }
+        #expect(timings.activate != nil)
+    }
+
+    @Test func literalStagesHaveNoRewriteAndADeliveryWithoutHandoff() async {
+        let h = Harness()
+        var stages: [SessionStage] = []
+        h.controller.onStage = { stages.append($0) }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle })
+        #expect(stages.prefix(2) == [.finalized, .literalReady])
+        #expect(stages.count == 3)
+        guard case .delivered(let timings)? = stages.last else { Issue.record("no delivery stage"); return }
+        #expect(timings.activate == nil)
+    }
 }

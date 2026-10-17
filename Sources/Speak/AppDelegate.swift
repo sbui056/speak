@@ -18,8 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hud = HUDPanelController(controller: app.controller, openSettings: { settings.show() })
         preview = PreviewPanelController(controller: app.controller)
         Task {
+            let missing = await app.start()
+            #if DEBUG
+            if let soak = app.soak { return await soak.run(app.controller) }
+            #endif
             // Settings opens once per launch while anything is missing.
-            if await app.start() { settings.show() }
+            if missing { settings.show() }
         }
     }
 

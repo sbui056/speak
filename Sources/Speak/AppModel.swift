@@ -15,6 +15,10 @@ final class AppModel {
     let history: HistoryModel
     /// `SPEAK_FAKE=1`: canned audio and transcript, real hotkey and delivery.
     let isFake: Bool
+    #if DEBUG
+    /// `SPEAK_SOAK=<n>` with fake mode: a fake hotkey and paste target too (`scripts/soak.sh`).
+    let soak: Soak?
+    #endif
     private(set) var model: SpeechModelStatus = .downloading(percent: 0)
     private(set) var supportedLocales: [Locale] = []
     /// Whether Concise and Polished can run, and why not.
@@ -33,8 +37,11 @@ final class AppModel {
     @ObservationIgnored private let rewriter: any Rewriter
     @ObservationIgnored private var hotkeyTask: Task<Void, Never>?
     @ObservationIgnored private var installing = false
-    /// Set at release: when, and in which mode; cleared once the dictation's timing is recorded.
-    @ObservationIgnored private var releasedAt: (ContinuousClock.Instant, RewriteMode)?
+    /// Started at release; split into stages as the session reports them.
+    @ObservationIgnored private var timer = DictationTimer()
+    /// Logs the footprint once Speak has sat idle for a while after launch or a dictation.
+    @ObservationIgnored private var idleSample: Task<Void, Never>?
+    private static let idleSampleDelay: Duration = .seconds(300)
 
     // MARK: Settings
 
@@ -110,8 +117,15 @@ final class AppModel {
         history = HistoryModel(files: .standard, isOn: historyOn)
 
         let clock = ContinuousClock()
-        let hotkeySource = EventTapHotkey()
-        let deliverer = Deliverer(env: SystemDeliveryEnvironment(), pasteboard: SystemPasteboard(), clock: clock)
+        var hotkeySource: any HotkeySource = EventTapHotkey()
+        var deliverer = Deliverer(env: SystemDeliveryEnvironment(), pasteboard: SystemPasteboard(), clock: clock)
+        #if DEBUG
+        soak = Soak(environment: environment)
+        if let soak {
+            hotkeySource = soak.hotkey
+            deliverer = Deliverer(env: soak.target, pasteboard: FakePasteboard(), clock: clock)
+        }
+        #endif
         let audio: any AudioSource
         let stt: any Transcriber
         if isFake {
@@ -149,6 +163,10 @@ final class AppModel {
             self?.measure(from: from, to: to)
             Log.session.info("\(String(describing: from), privacy: .public) → \(String(describing: to), privacy: .public) \(id?.description ?? "-", privacy: .public)")
         }
+        controller.onStage = { [weak self] stage in
+            guard let self, let line = timer.mark(stage, at: .now) else { return }
+            record(line)
+        }
         let controller = self.controller
         permissions.onChange = { [weak self] permission, granted in
             self?.onIconInputsChange?()
@@ -174,6 +192,7 @@ final class AppModel {
         Task { await refreshModel() }
         Task { await loadLocales() }
         refreshLaunchAtLogin()
+        logFootprint(after: "launch")
         return !permissions.allGranted
     }
 
@@ -213,19 +232,38 @@ final class AppModel {
     /// Release starts the clock; the preview opening or the text landing stops it.
     private func measure(from: Phase, to: Phase) {
         if from == .listening, to == .finalizing {
-            releasedAt = (.now, controller.state.sessionMode)
+            timer.released(at: .now, mode: controller.state.sessionMode)
             // A number only, kept for days, to tune the meter's decibel range to real voices.
             let dB = LevelMeterScale.dBFS(rms: controller.loudestLevel)
             Log.session.notice("level loudest dBFS=\(dB, privacy: .public)")
         }
         if to == .awaitingAcceptance { finishTiming(previewed: true) }
-        if to == .idle { releasedAt = nil }
+        if to == .idle {
+            timer.reset()
+            logFootprint(after: "session")
+        }
+    }
+
+    /// Notice level, kept for days: `latency.sh` reports idle, peak, and growth from it.
+    private func logFootprint(after event: String) {
+        if let mb = physFootprintMB() {
+            Log.session.notice("memory footprint=\(String(format: "%.1f", mb), privacy: .public)MB after=\(event, privacy: .public)")
+        }
+        guard event != "idle" else { return }
+        idleSample?.cancel()
+        idleSample = Task { [weak self] in
+            try? await Task.sleep(for: Self.idleSampleDelay)
+            guard let self, !Task.isCancelled, controller.state.phase == .idle else { return }
+            logFootprint(after: "idle")
+        }
     }
 
     private func finishTiming(previewed: Bool) {
-        guard let (start, mode) = releasedAt else { return }
-        releasedAt = nil
-        let line = TimingLine.dictation(mode: mode, previewed: previewed, duration: .now - start)
+        guard let line = timer.finish(previewed: previewed, at: .now) else { return }
+        record(line)
+    }
+
+    private func record(_ line: TimingLine) {
         timings.add(line)
         // Notice, not info: persisted for days, so README latency can be computed from everyday use.
         Log.session.notice("timing \(line.text, privacy: .public)")

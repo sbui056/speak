@@ -88,6 +88,16 @@ struct DelivererTests {
         #expect(await clock.drive(result) == .inserted)
     }
 
+    @Test func timingsSplitTheModifierWaitFromThePaste() async {
+        env.update { $0.modifierPolls = 3 } // three 20 ms polls
+        let d = deliverer
+        let context = await pressContext()
+        let result = Task { await d.deliverTimed("Hi", context: context) }
+        let delivered = await clock.drive(result)
+        #expect(delivered?.outcome == .inserted)
+        #expect(delivered?.timings == DeliveryTimings(modWait: .milliseconds(60), paste: .zero))
+    }
+
     @Test func modifiersStillHeldAfterTheWaitCopy() async {
         env.update { $0.modifierPolls = 1000 }
         let d = deliverer

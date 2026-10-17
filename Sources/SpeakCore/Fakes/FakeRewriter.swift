@@ -42,7 +42,7 @@ public final class FakeRewriter: Rewriter {
         state.withLock { $0.prewarms.append(instructions) }
     }
 
-    public func respond(to prompt: RewritePrompt) async throws -> String {
+    public func respond(to prompt: RewritePrompt) async throws -> RewriteReply {
         let config = state.withLock { s in
             s.prompts.append(prompt)
             return s.config
@@ -51,8 +51,8 @@ public final class FakeRewriter: Rewriter {
             await withCheckedContinuation { continuation in state.withLock { $0.gates.append(continuation) } }
         }
         if let error = config.error { throw error }
-        if let reply = config.reply { return reply }
-        return "<cleaned>\(Self.polish(transcript(in: prompt.prompt)))</cleaned>"
+        if let reply = config.reply { return RewriteReply(reply) }
+        return RewriteReply("<cleaned>\(Self.polish(transcript(in: prompt.prompt)))</cleaned>")
     }
 
     private static func polish(_ text: String) -> String {

@@ -105,6 +105,8 @@ All decisions live in `SpeakCore`, a pure state machine with no UI or system fra
 ```sh
 scripts/test.sh            # the SpeakCore suite, with fakes for audio, speech, keys, and the model
 scripts/check-privacy.sh   # no networking, no text in public logs, SpeakCore stays framework-free
+scripts/soak.sh            # 100 fake dictations in a debug build, then footprint growth and leaks
+scripts/latency.sh         # latency per mode and per stage, plus memory, from Speak's own logs
 ```
 
 The tests cover the session state machine, delivery rules, clipboard restore, undo, the rewrite guard (including prompt-injection attempts), the dictionary, and history storage. They need no microphone, permissions, or Apple Intelligence, so they run on CI.

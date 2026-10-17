@@ -40,6 +40,12 @@ public actor Deliverer {
     /// `modifierWait` is how long held modifier keys may delay the paste.
     public func deliver(_ text: String, context: PressContext?,
                         modifierWait: Duration = Constants.modWait) async -> DeliveryOutcome {
+        await deliverTimed(text, context: context, modifierWait: modifierWait).outcome
+    }
+
+    /// `deliver`, plus how long it waited on held modifiers and how long the rest took.
+    public func deliverTimed(_ text: String, context: PressContext?, modifierWait: Duration = Constants.modWait)
+        async -> (outcome: DeliveryOutcome, timings: DeliveryTimings) {
         await serially { await $0.deliverNow(text, context: context, modifierWait: modifierWait) }
     }
 
@@ -111,9 +117,21 @@ public actor Deliverer {
         return await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
     }
 
-    private func deliverNow(_ text: String, context: PressContext?, modifierWait: Duration) async -> DeliveryOutcome {
+    private func deliverNow(_ text: String, context: PressContext?,
+                            modifierWait: Duration) async -> (outcome: DeliveryOutcome, timings: DeliveryTimings) {
+        var outcome = DeliveryOutcome.empty
+        var modWait = Duration.zero
+        let total = await clock.measure {
+            outcome = await deliverMeasured(text, context: context, modifierWait: modifierWait, modWait: &modWait)
+        }
+        return (outcome, DeliveryTimings(modWait: modWait, paste: total - modWait))
+    }
+
+    private func deliverMeasured(_ text: String, context: PressContext?, modifierWait: Duration,
+                                 modWait: inout Duration) async -> DeliveryOutcome {
         await restorePending()
-        let modifiersHeld = await waitForModifiers(upTo: modifierWait)
+        var modifiersHeld = false
+        modWait = await clock.measure { modifiersHeld = await waitForModifiers(upTo: modifierWait) }
         let focusNow = await env.focusedElement()
         var snapshot = DeliverySnapshot(
             text: text,

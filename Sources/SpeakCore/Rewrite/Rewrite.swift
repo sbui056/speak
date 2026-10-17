@@ -84,7 +84,18 @@ public protocol Rewriter: Sendable {
     /// Loads the model ahead of a likely rewrite. Best effort.
     func prewarm(instructions: String) async
     /// The model's raw reply. Throws `RewriteError`.
-    func respond(to prompt: RewritePrompt) async throws -> String
+    func respond(to prompt: RewritePrompt) async throws -> RewriteReply
+}
+
+public struct RewriteReply: Equatable, Sendable {
+    public let text: String
+    /// Request to the first streamed token, when the model streams.
+    public let firstToken: Duration?
+
+    public init(_ text: String, firstToken: Duration? = nil) {
+        self.text = text
+        self.firstToken = firstToken
+    }
 }
 
 /// The instructions for a mode. Exposed so prewarming uses the same prefix.

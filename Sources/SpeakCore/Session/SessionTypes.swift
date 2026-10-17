@@ -49,6 +49,14 @@ public enum TimerKind: Equatable, Sendable {
     case keyPoll
 }
 
+/// Milestones of one dictation, reported for timing. Never carries text.
+public enum SessionStage: Equatable, Sendable {
+    case finalized
+    case literalReady
+    case rewritten(firstToken: Duration?)
+    case delivered(DeliveryTimings)
+}
+
 /// How the delivery ended. A copy carries the reason shown to the user.
 public enum DeliveryOutcome: Equatable, Sendable {
     case inserted
