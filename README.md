@@ -2,9 +2,13 @@
 
 Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all on-device.
 
-![Speak in action](docs/demo.gif)
-
 [![CI](https://github.com/sbui056/speak/actions/workflows/ci.yml/badge.svg)](https://github.com/sbui056/speak/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![macOS 26](https://img.shields.io/badge/macOS-26%20Tahoe-black?logo=apple)
+![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
+![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-only-555)
+
+![Speak in action](docs/demo.gif)
 
 ## Features
 
