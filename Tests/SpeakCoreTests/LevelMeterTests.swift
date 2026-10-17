@@ -14,7 +14,7 @@ struct LevelMeterTests {
     }
 
     @Test func normalPeaksLeaveHeadroom() {
-        // The user's normal-voice peaks were −24…−17 dBFS (2026-10-17) and read too full.
+        // Normal-voice peaks of about −24 to −17 dBFS should stay short of full.
         #expect(LevelMeterScale.fraction(rms: 0.14) < 0.85) // −17 dBFS
         #expect(LevelMeterScale.fraction(rms: 0.063) > 0.6) // −24 dBFS
     }

@@ -30,37 +30,15 @@ public final class FakeDeliveryEnvironment: DeliveryEnvironment {
     private let world = Mutex(World())
     /// When set, each ⌘V waits for `releasePaste()`, so a test can overlap deliveries.
     private let pasteHold = Mutex<(enabled: Bool, waiting: [CheckedContinuation<Void, Never>])>((false, []))
+
     public init() {}
+
+    // MARK: Test controls
 
     public func update(_ change: (inout World) -> Void) { world.withLock { change(&$0) } }
     public var pastes: [UInt16] { world.withLock { $0.pastes } }
-
-    public func frontmostPID() async -> Int32? { world.withLock { $0.frontmostPID } }
-    public func frontmostBundleID() async -> String? { world.withLock { $0.bundleID } }
-    public func focusedElement() async -> FocusedElement { world.withLock { $0.focus } }
-    public func isSameElement(_ a: ElementRef, _ b: ElementRef) async -> Bool { a.raw === b.raw }
-    public func accessibilityTrusted() async -> Bool { world.withLock { $0.accessibilityTrusted } }
-    public func secureInputActive(_ focus: FocusedElement) async -> Bool { world.withLock { $0.secureInput } }
-    public func keyboardLayout() async -> [UInt16: Character] { world.withLock { $0.layout } }
-    public func postPaste(keyCode: UInt16) async {
-        world.withLock { $0.pastes.append(keyCode) }
-        guard pasteHold.withLock({ $0.enabled }) else { return }
-        await withCheckedContinuation { continuation in pasteHold.withLock { $0.waiting.append(continuation) } }
-    }
-
-    public func postUndo(keyCode: UInt16) async { world.withLock { $0.undos.append(keyCode) } }
     public var undos: [UInt16] { world.withLock { $0.undos } }
     public var activations: [Int32] { world.withLock { $0.activations } }
-
-    public func activate(pid: Int32) async {
-        world.withLock { w in
-            w.activations.append(pid)
-            if w.activationWorks { w.frontmostPID = pid }
-        }
-    }
-
-    public func textLength(of element: ElementRef) async -> Int? { world.withLock { $0.textLength } }
-    public func selectionLength(of element: ElementRef) async -> Int? { world.withLock { $0.selectionLength } }
 
     public func holdPastes() { pasteHold.withLock { $0.enabled = true } }
     public var heldPastes: Int { pasteHold.withLock { $0.waiting.count } }
@@ -70,11 +48,38 @@ public final class FakeDeliveryEnvironment: DeliveryEnvironment {
         pasteHold.withLock { $0.waiting.isEmpty ? nil : $0.waiting.removeFirst() }?.resume()
     }
 
+    // MARK: DeliveryEnvironment
+
+    public func frontmostPID() async -> Int32? { world.withLock { $0.frontmostPID } }
+    public func frontmostBundleID() async -> String? { world.withLock { $0.bundleID } }
+    public func focusedElement() async -> FocusedElement { world.withLock { $0.focus } }
+    public func isSameElement(_ a: ElementRef, _ b: ElementRef) async -> Bool { a.raw === b.raw }
+    public func accessibilityTrusted() async -> Bool { world.withLock { $0.accessibilityTrusted } }
+    public func secureInputActive(_ focus: FocusedElement) async -> Bool { world.withLock { $0.secureInput } }
+    public func keyboardLayout() async -> [UInt16: Character] { world.withLock { $0.layout } }
+    public func textLength(of element: ElementRef) async -> Int? { world.withLock { $0.textLength } }
+    public func selectionLength(of element: ElementRef) async -> Int? { world.withLock { $0.selectionLength } }
+
     public func modifiersDown() async -> Bool {
         world.withLock { w in
             guard w.modifierPolls > 0 else { return false }
             w.modifierPolls -= 1
             return true
+        }
+    }
+
+    public func postPaste(keyCode: UInt16) async {
+        world.withLock { $0.pastes.append(keyCode) }
+        guard pasteHold.withLock({ $0.enabled }) else { return }
+        await withCheckedContinuation { continuation in pasteHold.withLock { $0.waiting.append(continuation) } }
+    }
+
+    public func postUndo(keyCode: UInt16) async { world.withLock { $0.undos.append(keyCode) } }
+
+    public func activate(pid: Int32) async {
+        world.withLock { w in
+            w.activations.append(pid)
+            if w.activationWorks { w.frontmostPID = pid }
         }
     }
 }
@@ -131,70 +136,4 @@ public final class FakePasteboard: Pasteboard {
             $0.restores += 1
         }
     }
-}
-
-/// A hotkey the test presses by hand.
-public final class FakeHotkeySource: HotkeySource {
-    private struct State {
-        var isDown = false
-        var continuation: AsyncStream<HotkeyEvent>.Continuation?
-    }
-
-    private let state = Mutex(State())
-    private let clock: @Sendable () -> KeyTime
-
-    /// `clock` supplies key timestamps, so they line up with the test's clock.
-    public init(clock: @escaping @Sendable () -> KeyTime) {
-        self.clock = clock
-    }
-
-    public func start(_ key: HotkeyChoice) -> AsyncStream<HotkeyEvent> {
-        let (stream, continuation) = AsyncStream<HotkeyEvent>.makeStream(bufferingPolicy: .unbounded)
-        state.withLock { $0.continuation = continuation }
-        return stream
-    }
-
-    public func stop() { state.withLock { $0.continuation }?.finish() }
-    public func isKeyDown(_ key: HotkeyChoice) -> Bool { state.withLock { $0.isDown } }
-    public func now() -> KeyTime { clock() }
-
-    public func press() { set(down: true, .pressed(at: clock())) }
-    public func release() { set(down: false, .released(at: clock())) }
-    /// The key went up but the event never arrived.
-    public func loseRelease() { state.withLock { $0.isDown = false } }
-    public func emit(_ event: HotkeyEvent) { state.withLock { $0.continuation }?.yield(event) }
-
-    private func set(down: Bool, _ event: HotkeyEvent) {
-        let continuation = state.withLock { s in
-            s.isDown = down
-            return s.continuation
-        }
-        continuation?.yield(event)
-    }
-}
-
-/// Permissions the test grants and revokes by hand.
-public final class FakePermissionChecker: PermissionChecker {
-    private let state = Mutex<(granted: Set<Permission>, requests: [Permission], opened: [Permission])>(([], [], []))
-
-    public init(granted: Set<Permission> = Set(Permission.allCases)) {
-        state.withLock { $0.granted = granted }
-    }
-
-    public func set(_ permission: Permission, granted: Bool) {
-        state.withLock { s in
-            if granted { s.granted.insert(permission) } else { s.granted.remove(permission) }
-        }
-    }
-
-    public var opened: [Permission] { state.withLock { $0.opened } }
-
-    public func isGranted(_ permission: Permission) async -> Bool { state.withLock { $0.granted.contains(permission) } }
-
-    public func request(_ permission: Permission) async -> Bool {
-        state.withLock { $0.requests.append(permission) }
-        return permission == .microphone
-    }
-
-    public func openSettings(_ permission: Permission) async { state.withLock { $0.opened.append(permission) } }
 }

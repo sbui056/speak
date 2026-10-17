@@ -123,11 +123,6 @@ struct TermCorrectionTests {
 }
 
 struct AppFilesTests {
-    private func tempFiles() -> AppFiles {
-        AppFiles(directory: FileManager.default.temporaryDirectory
-            .appendingPathComponent("speak-tests-\(UUID().uuidString)", isDirectory: true))
-    }
-
     @Test func roundTripsWithPrivatePermissions() throws {
         let files = tempFiles()
         defer { try? FileManager.default.removeItem(at: files.directory) }

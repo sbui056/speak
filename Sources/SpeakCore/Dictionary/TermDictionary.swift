@@ -12,8 +12,9 @@ public enum TermError: Error, Equatable, Sendable {
     public var message: String {
         switch self {
         case .duplicate: "Already in dictionary"
-        case .length: "Must be 2–64 characters"
-        case .limit: "Limit of 200 reached"
+        case .length:
+            "Must be \(Constants.dictTermLength.lowerBound)–\(Constants.dictTermLength.upperBound) characters"
+        case .limit: "Limit of \(Constants.dictMaxEntries) reached"
         case .angleBrackets: "Can't contain < or >"
         case .controlCharacters: "Can't contain tabs or line breaks"
         }
@@ -33,7 +34,7 @@ public struct TermDictionary: Equatable, Sendable {
         for term in raw { try? add(term) }
     }
 
-    public static func normalize(_ raw: String) -> String {
+    private static func normalize(_ raw: String) -> String {
         raw.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
     }
 

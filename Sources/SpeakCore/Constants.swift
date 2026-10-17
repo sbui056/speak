@@ -35,9 +35,9 @@ public enum Constants {
         "com.parallels.desktop.console",
         "com.utmapp.UTM",
     ]
-    /// Rewrite timeout.
+    /// A rewrite still running after this long is dropped and the literal text used.
     public static let rewriteTimeout: Duration = .milliseconds(2500)
-    /// Transcriber start watchdog.
+    /// A transcriber that hasn't consumed any audio by then has stalled; the dictation is abandoned.
     public static let sttStart: Duration = .seconds(3)
     /// Maximum partial-text refresh rate in the HUD (Hz).
     public static let hudRate: Double = 15

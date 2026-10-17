@@ -7,10 +7,8 @@ import SwiftUI
 @MainActor
 final class HUDPanelController {
     private let panel: NSPanel
-    private let controller: SessionController
 
     init(controller: SessionController, openSettings: @escaping () -> Void) {
-        self.controller = controller
         panel = HUDWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 96),
                           styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: true)
         panel.isFloatingPanel = true
@@ -44,12 +42,18 @@ final class HUDPanelController {
 
     /// Bottom-center of the screen that has the pointer.
     private func position() {
-        let mouse = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main
-        else { return }
+        guard let screen = NSScreen.withPointer else { return }
         let frame = screen.visibleFrame
         let size = panel.contentView?.fittingSize ?? panel.frame.size
         panel.setFrameOrigin(NSPoint(x: frame.midX - size.width / 2, y: frame.minY + 72))
+    }
+}
+
+extension NSScreen {
+    /// The screen the pointer is on, where the user is looking.
+    @MainActor static var withPointer: NSScreen? {
+        let mouse = NSEvent.mouseLocation
+        return screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? main
     }
 }
 

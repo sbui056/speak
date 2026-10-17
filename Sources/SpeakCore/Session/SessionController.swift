@@ -28,6 +28,10 @@ public final class SessionController {
     @ObservationIgnored public var onFinished: ((String) -> Void)?
     /// Called when the model's reply failed validation, for logging. Never sees text.
     @ObservationIgnored public var onRewriteRejected: ((RewriteMode) -> Void)?
+    /// Called after every transition, for logging. Never sees transcript text.
+    @ObservationIgnored public var onTransition: ((Phase, Phase, SessionID?) -> Void)?
+    /// The key the poll asks about when a key-up may have been lost.
+    @ObservationIgnored public var hotkeyChoice: HotkeyChoice = .rightOption
 
     @ObservationIgnored private let audio: any AudioSource
     @ObservationIgnored private let transcriber: any Transcriber
@@ -43,11 +47,8 @@ public final class SessionController {
     /// during a slow engine start stops it once the start completes, and a stale
     /// stop can never close the next session's engine.
     @ObservationIgnored private var audioTail: Task<Void, Never>?
-    /// Pasteboard copies made on quit or sleep, which quit has to wait for.
+    /// Rescue copies (a hung paste, sleep, quit), which quit has to wait for.
     @ObservationIgnored private var copyTail: Task<Void, Never>?
-    @ObservationIgnored public var hotkeyChoice: HotkeyChoice = .rightOption
-    /// Called after every transition, for logging. Never sees transcript text.
-    @ObservationIgnored public var onTransition: ((Phase, Phase, SessionID?) -> Void)?
 
     /// Work that belongs to one session.
     private final class Runtime {
@@ -126,9 +127,10 @@ public final class SessionController {
     /// A delivery finished (inserted, or copied as a fallback), or the preview's Copy was chosen.
     private func reportFinished(_ event: SessionEvent, before: SessionState) {
         let delivered = before.phase == .delivering && state.phase != .delivering
-        var copied = false
-        if case .preview(_, .copy) = event, before.phase == .awaitingAcceptance, state.phase != .awaitingAcceptance {
-            copied = true
+        let copied = if case .preview(_, .copy) = event {
+            before.phase == .awaitingAcceptance && state.phase != .awaitingAcceptance
+        } else {
+            false
         }
         if delivered || copied, let text = state.delivered { onFinished?(text) }
     }
@@ -301,14 +303,6 @@ public final class SessionController {
                 self.level = rms
                 self.loudestLevel = max(self.loudestLevel, rms)
             }
-        }
-    }
-
-    func show(_ outcome: DeliveryOutcome) {
-        switch outcome {
-        case .inserted: hud.show(.result(.inserted))
-        case .copied(let reason): hud.show(.error(reason))
-        case .empty: hud.show(.result(.empty))
         }
     }
 }

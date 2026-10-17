@@ -2,7 +2,7 @@ import Testing
 @testable import SpeakCore
 
 /// Pins the exact user-facing copy so a wording change is always deliberate.
-@Suite struct MessagesTests {
+struct MessagesTests {
     static let expected: [(Messages, String)] = [
         (.mic, "Microphone not granted — open Settings to allow"),
         (.micBusy, "Microphone unavailable — another app may be using it"),

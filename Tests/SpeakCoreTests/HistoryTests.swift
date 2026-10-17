@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import SpeakCore
 
-private func tempFiles() -> AppFiles {
-    AppFiles(directory: FileManager.default.temporaryDirectory
-        .appendingPathComponent("speak-tests-\(UUID().uuidString)", isDirectory: true))
-}
-
 private func names(_ files: AppFiles) -> [String] {
     ((try? FileManager.default.contentsOfDirectory(atPath: files.directory.path)) ?? []).sorted()
 }
@@ -40,7 +35,7 @@ struct HistoryTests {
         #expect(mode == 0o600)
     }
 
-    @Test func keepsOnlyTheNewestCHistoryEntries() throws {
+    @Test func keepsOnlyTheNewestEntries() throws {
         let files = tempFiles()
         defer { try? FileManager.default.removeItem(at: files.directory) }
         let history = HistoryModel(files: files, isOn: true)
@@ -119,7 +114,7 @@ struct HistoryHookTests {
         h.controller.onFinished = { reported.append($0) }
         await h.hold(for: .milliseconds(1500))
         #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
-        #expect(reported == ["Hello world, this is a fake transcript."])
+        #expect(reported == [Harness.fakeText])
     }
 
     @Test func copyFromThePreviewIsReportedAndCancelIsNot() async {

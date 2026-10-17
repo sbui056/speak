@@ -1,8 +1,8 @@
 import Foundation
 
 /// Maps microphone loudness to the HUD meter. Hearing is logarithmic, so the bar
-/// follows decibels: room noise reads empty and normal speech lands mid-bar.
-/// A linear scale left ordinary speech in the bottom fifth.
+/// follows decibels: room noise reads empty and normal speech lands mid-bar,
+/// where a linear scale would leave it in the bottom fifth.
 public enum LevelMeterScale {
     /// Quieter than this reads as empty (room noise).
     public static let floorDBFS: Float = -55

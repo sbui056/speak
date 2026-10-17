@@ -75,8 +75,8 @@ public struct AppFiles: Sendable {
 
     // MARK: Private
 
-    static let dictionaryFile = "dictionary.json"
-    static let historyFile = "history.jsonl"
+    private static let dictionaryFile = "dictionary.json"
+    private static let historyFile = "history.jsonl"
 
     private struct DictionaryFile: Codable {
         var version: Int

@@ -1,5 +1,7 @@
 import Observation
 
+// MARK: Permissions
+
 public enum Permission: CaseIterable, Sendable {
     case microphone
     case inputMonitoring
@@ -30,6 +32,8 @@ public protocol PermissionChecker: Sendable {
     /// Opens the exact System Settings pane.
     func openSettings(_ permission: Permission) async
 }
+
+// MARK: Model
 
 /// The three permissions, kept current: checked at launch, when the app becomes
 /// active, and every 2 s while any is missing.
@@ -95,6 +99,8 @@ public final class PermissionsModel {
     }
 }
 
+// MARK: Menu bar
+
 /// What the menu shows as its first line, most urgent first.
 public func menuStatus(permissions: [Permission: Bool], needsRelaunch: Bool, model: SpeechModelStatus,
                        hotkey: HotkeyChoice) -> String {
@@ -129,16 +135,6 @@ public enum MenuIcon: Equatable, Sendable {
         case .listening: "mic.fill"
         case .processing: "ellipsis.circle"
         case .problem: "exclamationmark.triangle"
-        }
-    }
-}
-
-public extension HotkeyChoice {
-    var title: String {
-        switch self {
-        case .rightOption: "Right Option"
-        case .rightCommand: "Right Command"
-        case .rightControl: "Right Control"
         }
     }
 }

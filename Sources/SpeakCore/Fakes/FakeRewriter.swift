@@ -55,7 +55,7 @@ public final class FakeRewriter: Rewriter {
         return "<cleaned>\(Self.polish(transcript(in: prompt.prompt)))</cleaned>"
     }
 
-    static func polish(_ text: String) -> String {
+    private static func polish(_ text: String) -> String {
         var words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
         if let first = words.first { words[0] = first.uppercased() }
         return words.joined(separator: " ") + " (polished)"

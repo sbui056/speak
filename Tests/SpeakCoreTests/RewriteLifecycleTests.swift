@@ -1,7 +1,9 @@
 import Testing
 @testable import SpeakCore
 
-private let fakeText = "Hello world, this is a fake transcript."
+private let fakeText = Harness.fakeText
+/// What the fake rewriter returns for the fake transcript in Polished.
+private let fakeRewrite = "HELLO world, this is a fake transcript. (polished)"
 
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
@@ -19,14 +21,14 @@ struct RewriteLifecycleTests {
         #expect(await eventually { h.controller.preview != nil })
         #expect(h.phase == .awaitingAcceptance)
         #expect(h.env.pastes.isEmpty)
-        #expect(h.controller.preview?.rewrite == "HELLO world, this is a fake transcript. (polished)")
+        #expect(h.controller.preview?.rewrite == fakeRewrite)
         #expect(h.rewriter.prewarms.count == 1)
 
         h.controller.choose(.insert(h.controller.preview!.rewrite))
         #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
         #expect(h.controller.preview == nil)
-        #expect(h.pasteboard.text == "HELLO world, this is a fake transcript. (polished)")
-        #expect(h.controller.lastTranscript == "HELLO world, this is a fake transcript. (polished)")
+        #expect(h.pasteboard.text == fakeRewrite)
+        #expect(h.controller.lastTranscript == fakeRewrite)
         #expect(await eventually { h.hud == .result(.inserted) })
     }
 
@@ -57,7 +59,7 @@ struct RewriteLifecycleTests {
         let h = polished()
         await h.hold(for: .milliseconds(1500))
         #expect(await eventually { h.controller.preview != nil })
-        // About 1 s of Option still down (20 ms per poll): longer than C-MODWAIT.
+        // About 1 s of Option still down (20 ms per poll): longer than the normal modifier wait.
         h.env.update { $0.modifierPolls = 50 }
         h.controller.choose(.insertLiteral)
         #expect(await h.clock.advance(until: { h.phase == .idle }))
@@ -130,7 +132,7 @@ struct RewriteLifecycleTests {
         #expect(h.clock.elapsed - start >= Constants.rewriteTimeout - .milliseconds(10))
         #expect(await eventually { h.env.pastes.count == 1 && h.phase == .idle })
         h.rewriter.release() // the reply arrives late and changes nothing
-        for _ in 0..<100 { await Task.yield() }
+        await settle()
         #expect(h.controller.preview == nil)
         #expect(h.env.pastes.count == 1)
     }
@@ -148,9 +150,8 @@ struct RewriteLifecycleTests {
         await h.hold(for: .milliseconds(1500))
         #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
         #expect(h.controller.preview == nil)
-        #expect(h.pasteboard.text == "HELLO world, this is a fake transcript. (polished)")
-        let rewrite = "HELLO world, this is a fake transcript. (polished)"
-        h.env.update { $0.textLength = 10 + rewrite.utf16.count } // the field now shows the paste
+        #expect(h.pasteboard.text == fakeRewrite)
+        h.env.update { $0.textLength = 10 + fakeRewrite.utf16.count } // the field now shows the paste
         #expect(await h.controller.undoIsSafe())
         #expect(h.controller.lastTranscript == fakeText)
         await h.controller.pasteLast()
@@ -186,91 +187,5 @@ struct RewriteLifecycleTests {
         #expect(prompt == buildRewritePrompt("Ask Siobhan about Kubernetes today please", mode: .polished,
                                              terms: ["Siobhan", "Kubernetes"]))
         #expect(h.controller.preview?.literal == "Ask Siobhan about Kubernetes today please")
-    }
-}
-
-@Suite(.timeLimit(.minutes(1)))
-struct UndoTests {
-    let clock = TestClock()
-    let env = FakeDeliveryEnvironment()
-    let pasteboard = FakePasteboard()
-
-    /// Pastes "Hi" into a 10-character field, which the app then shows as 12.
-    private func pasted() async -> Deliverer {
-        let d = Deliverer(env: env, pasteboard: pasteboard, clock: clock)
-        let context = PressContext(pid: await env.frontmostPID(), focus: await env.focusedElement())
-        #expect(await d.deliver("Hi", context: context) == .inserted)
-        env.update { $0.textLength = 12 }
-        return d
-    }
-
-    @Test func undoSendsCommandZOnceInTheSameField() async {
-        let d = await pasted()
-        #expect(await d.canUndo)
-        #expect(await d.undoIsSafe())
-        #expect(await d.undoLastInsert())
-        #expect(env.undos == [6])
-        #expect(!(await d.canUndo))
-        #expect(!(await d.undoLastInsert()))
-        #expect(env.undos == [6])
-    }
-
-    @Test func undoUsesTheLayoutsZ() async {
-        env.update { $0.layout = [9: "v", 44: "z"] }
-        let d = await pasted()
-        #expect(await d.undoLastInsert())
-        #expect(env.undos == [44])
-    }
-
-    @Test func expiresAfterTheUndoWindow() async {
-        let d = await pasted()
-        await clock.advance(by: Constants.undo - .milliseconds(20))
-        #expect(await d.canUndo)
-        await clock.advance(by: .milliseconds(40))
-        #expect(!(await d.canUndo))
-        #expect(!(await d.undoLastInsert()))
-        #expect(env.undos.isEmpty)
-    }
-
-    @Test func refusedAfterSwitchingApps() async {
-        let d = await pasted()
-        env.update { $0.frontmostPID = 7 }
-        #expect(!(await d.undoIsSafe()))
-        #expect(!(await d.undoLastInsert()))
-        #expect(env.undos.isEmpty)
-    }
-
-    @Test func refusedAfterFocusMoves() async {
-        let d = await pasted()
-        env.update { $0.focus = .element(ElementRef(FakeDeliveryEnvironment.Element("other"))) }
-        #expect(!(await d.undoLastInsert()))
-        #expect(env.undos.isEmpty)
-    }
-
-    @Test func refusedWhenTheFieldWasEditedSince() async {
-        let d = await pasted()
-        env.update { $0.textLength = 15 }
-        #expect(!(await d.undoLastInsert()))
-    }
-
-    @Test func selectionReplacedByThePasteIsAccountedFor() async {
-        env.update { $0.selectionLength = 4 }
-        let d = await pasted()
-        env.update { $0.textLength = 8 } // 10 - 4 selected + 2 pasted
-        #expect(await d.undoLastInsert())
-    }
-
-    @Test func unreadableLengthStillAllowsUndo() async {
-        env.update { $0.textLength = nil }
-        let d = await pasted()
-        env.update { $0.textLength = nil }
-        #expect(await d.undoLastInsert())
-    }
-
-    @Test func copyDoesNotOfferUndo() async {
-        env.update { $0.accessibilityTrusted = false }
-        let d = Deliverer(env: env, pasteboard: pasteboard, clock: clock)
-        _ = await d.deliver("Hi", context: PressContext(pid: 100, focus: await env.focusedElement()))
-        #expect(!(await d.canUndo))
     }
 }

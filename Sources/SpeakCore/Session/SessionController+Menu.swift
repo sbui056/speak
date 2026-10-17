@@ -37,7 +37,7 @@ extension SessionController {
 
     /// The last paste can be undone now: still within the undo window, same app and field.
     public func undoIsSafe() async -> Bool {
-        await deliverer.canUndo ? await deliverer.undoIsSafe() : false
+        await deliverer.undoIsSafe()
     }
 
     public func undoDiagnostics() async -> String {
@@ -54,5 +54,13 @@ extension SessionController {
         guard let text = lastTranscript else { return }
         await deliverer.copy(text)
         hud.show(.result(.copied))
+    }
+
+    private func show(_ outcome: DeliveryOutcome) {
+        switch outcome {
+        case .inserted: hud.show(.result(.inserted))
+        case .copied(let reason): hud.show(.error(reason))
+        case .empty: hud.show(.result(.empty))
+        }
     }
 }

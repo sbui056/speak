@@ -9,7 +9,7 @@ public struct HistoryEntry: Codable, Equatable, Identifiable, Sendable {
 }
 
 /// Recent dictations, kept only when the user turns history on (off by default).
-/// Newest first, at most C-HISTORY, saved after every change.
+/// Newest first, at most `Constants.historyMax`, saved after every change.
 @MainActor
 @Observable
 public final class HistoryModel {

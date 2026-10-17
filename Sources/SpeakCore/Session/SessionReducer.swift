@@ -197,9 +197,8 @@ struct Reducer {
         case (.rewrite, .rewriting):
             fallBackToLiteral()
         case (.deliver, .delivering):
-            // Paste hung (an unresponsive app). Ending the session cancels it;
-            // the text still ends up somewhere the user can get it.
-            // The text being delivered: an accepted rewrite or edit, else the literal.
+            // Paste hung (an unresponsive app). Ending the session cancels it, and
+            // the text (an accepted rewrite or edit, else the literal) is copied instead.
             if let text = state.delivered ?? state.literal { emit(.copyToPasteboard(text)) }
             finish(.result(.copied))
         default:

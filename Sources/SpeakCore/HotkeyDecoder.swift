@@ -50,7 +50,7 @@ public struct HotkeyDecoder: Sendable {
 
     /// Shift, Control, Option, Command, plus the per-side device bits so the
     /// left-hand twin of the hotkey also counts. Caps Lock and Fn don't chord.
-    static let modifierMask: UInt64 =
+    private static let modifierMask: UInt64 =
         0x0002_0000 | 0x0004_0000 | 0x0008_0000 | 0x0010_0000 // Shift, Control, Option, Command
         | 0x01 | 0x02 | 0x04 | 0x08 | 0x10 | 0x20 | 0x40 | 0x2000 // left/right of each
 }
@@ -64,9 +64,11 @@ public extension HotkeyChoice {
         case .rightControl: 0x4_0000
         }
     }
+}
 
+extension HotkeyChoice {
     /// The device-specific flag bit for this right-hand modifier.
-    var deviceMask: UInt64 {
+    fileprivate var deviceMask: UInt64 {
         switch self {
         case .rightOption: 0x40
         case .rightCommand: 0x10

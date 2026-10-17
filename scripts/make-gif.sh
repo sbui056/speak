@@ -9,7 +9,7 @@ width=${3:-800}
 trim=""
 [ -n "${4:-}" ] && trim="-ss $4"
 [ -n "${5:-}" ] && trim="$trim -to $5"
-command -v ffmpeg >/dev/null || { echo "make-gif: needs ffmpeg (brew install ffmpeg)"; exit 1; }
+command -v ffmpeg >/dev/null || { echo "make-gif: needs ffmpeg (brew install ffmpeg)" >&2; exit 1; }
 
 convert() { # fps width
   # shellcheck disable=SC2086
@@ -26,4 +26,4 @@ if [ "$(stat -f %z "$out")" -gt "$limit" ]; then
 fi
 size=$(stat -f %z "$out")
 echo "make-gif: $out $((size / 1024)) KB"
-[ "$size" -le "$limit" ] || { echo "make-gif: still over 5 MB; trim it with the from/to arguments"; exit 1; }
+[ "$size" -le "$limit" ] || { echo "make-gif: still over 5 MB; trim it with the from/to arguments" >&2; exit 1; }

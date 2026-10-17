@@ -67,15 +67,9 @@ private struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if model.showCorruptNotice {
-                HStack(alignment: .firstTextBaseline) {
-                    Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
-                    Text("The saved history couldn't be read, so it was set aside and a new one started.")
-                        .font(.callout)
-                    Spacer()
-                    Button("OK") { model.showCorruptNotice = false }
+                Notice(text: "The saved history couldn't be read, so it was set aside and a new one started.") {
+                    model.showCorruptNotice = false
                 }
-                .padding(8)
-                .background(.yellow.opacity(0.15), in: .rect(cornerRadius: 6))
             }
             if model.saveFailed {
                 Text("Couldn't save history. Entries last until Speak quits.").font(.callout)
@@ -148,12 +142,12 @@ private struct DictionaryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if model.showCorruptNotice {
-                notice("The saved dictionary couldn't be read, so it was set aside and a new one started.") {
+                Notice(text: "The saved dictionary couldn't be read, so it was set aside and a new one started.") {
                     model.showCorruptNotice = false
                 }
             }
             if model.saveFailed {
-                notice("Couldn't save the dictionary. Changes last until Speak quits.", dismiss: nil)
+                Notice(text: "Couldn't save the dictionary. Changes last until Speak quits.")
             }
 
             HStack {
@@ -201,8 +195,14 @@ private struct DictionaryView: View {
             addError = error
         }
     }
+}
 
-    private func notice(_ text: String, dismiss: (() -> Void)?) -> some View {
+/// A warning banner above the list, with OK when it can be dismissed.
+private struct Notice: View {
+    let text: String
+    var dismiss: (() -> Void)?
+
+    var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
             Text(text).font(.callout)

@@ -15,7 +15,7 @@ public final class HUDModel {
     @ObservationIgnored private var hideTask: Task<Void, Never>?
     @ObservationIgnored private var partialTask: Task<Void, Never>?
     @ObservationIgnored private var pendingPartial: String?
-    @ObservationIgnored private var recentErrors: [(Messages, ContinuousClock.Instant)] = []
+    @ObservationIgnored private var recentErrors: [(message: Messages, shownAt: ContinuousClock.Instant)] = []
 
     public init(clock: any Clock<Duration>) {
         self.clock = clock
@@ -99,8 +99,8 @@ public final class HUDModel {
     /// this is about what the user just saw, not session timing.
     private func shownRecently(_ message: Messages) -> Bool {
         let now = ContinuousClock.now
-        recentErrors.removeAll { now - $0.1 > Constants.coalesce }
-        if recentErrors.contains(where: { $0.0 == message }) { return true }
+        recentErrors.removeAll { now - $0.shownAt > Constants.coalesce }
+        if recentErrors.contains(where: { $0.message == message }) { return true }
         recentErrors.append((message, now))
         return false
     }

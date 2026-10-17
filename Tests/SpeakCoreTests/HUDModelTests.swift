@@ -33,10 +33,7 @@ struct HUDModelTests {
         await clock.advance(by: .seconds(1 / Constants.hudRate) + .milliseconds(10))
         #expect(hud.content == .partial("abc"))
     }
-}
 
-@MainActor
-struct HUDHoverTests {
     @Test func hoveringKeepsAnErrorOpen() async {
         let clock = TestClock()
         let hud = HUDModel(clock: clock)
@@ -48,10 +45,7 @@ struct HUDHoverTests {
         await clock.advance(by: Constants.hudError + .milliseconds(20))
         #expect(hud.content == nil)
     }
-}
 
-@MainActor
-struct HUDCallbackTests {
     @Test func everyChangeIsReported() async {
         let clock = TestClock()
         let hud = HUDModel(clock: clock)

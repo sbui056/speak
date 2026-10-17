@@ -1,16 +1,6 @@
 import Testing
 @testable import SpeakCore
 
-private let s1 = SessionID(1)
-private func ms(_ n: Int) -> KeyTime { .milliseconds(n) }
-
-private func run(_ events: [SessionEvent], from start: SessionState = SessionState()) -> (SessionState, [Effect]) {
-    var state = start
-    var last: [Effect] = []
-    for event in events { (state, last) = reduce(state, event) }
-    return (state, last)
-}
-
 private let literal = "Um so I think we should move the meeting to Thursday"
 private let rewrite = "I think we should move the meeting to Thursday."
 
@@ -86,7 +76,7 @@ struct RewriteReducerTests {
         let (casing, _) = run(session(.polished, literal: "move the meeting to thursday", preview: .never) +
                               [.rewritten(s1, "Move the meeting to Thursday."), .delivered(s1, .inserted)])
         #expect(casing.lastTranscript == "Move the meeting to Thursday.")
-        // An accepted preview keeps today's behavior.
+        // An accepted preview gives back what went in.
         let (accepted, _) = run(previewing + [.preview(s1, .insert(rewrite)), .delivered(s1, .inserted)])
         #expect(accepted.lastTranscript == rewrite)
     }

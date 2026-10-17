@@ -35,7 +35,7 @@ final class SettingsWindowController {
     }
 }
 
-struct SettingsView: View {
+private struct SettingsView: View {
     @Bindable var app: AppModel
     let openHistory: () -> Void
     @State private var confirmDelete = false

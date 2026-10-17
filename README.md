@@ -4,8 +4,6 @@ Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all 
 
 [![CI](https://github.com/sbui056/speak/actions/workflows/ci.yml/badge.svg)](https://github.com/sbui056/speak/actions/workflows/ci.yml)
 
-![Speak in action](docs/demo.gif)
-
 ## Features
 
 - **Push to talk anywhere.** Hold Right Option (or Right Command / Right Control), speak, release. The text is pasted where your cursor is, and your clipboard is put back afterwards.
@@ -50,10 +48,11 @@ After you grant Input Monitoring, Speak asks to relaunch once, because macOS onl
 | Preview: discard | **Esc** |
 | Change mode / Show preview | Menu bar icon → **Mode** |
 | Undo the last paste | Menu bar icon → **Undo insert** (within 30 s) |
-| Paste or copy the last transcript | Menu bar icon |
+| Paste or copy the last transcript | Menu bar icon → **Paste last transcript** / **Copy last transcript** |
+| Add names and jargon | Menu bar icon → **Dictionary…** |
 | See your history (when it's on) | Menu bar icon → **History…** |
 
-In Settings you can choose the shortcut key and the language, see Apple Intelligence status, turn history on or off, set launch at login, copy diagnostics, and try a test dictation.
+In Settings you can check permissions, choose the shortcut key and the language, see Apple Intelligence status, set Show preview, turn history on or off, set launch at login, copy diagnostics, and try a test dictation.
 
 ## Privacy
 
@@ -73,7 +72,7 @@ flowchart LR
   clean -->|Concise / Polished| rw["Foundation Models<br/><small>on-device</small>"]
   rw --> pv["Preview<br/><small>when words change</small>"]
   clean -->|Literal| rules{"Delivery checks"}
-  rw -.->|casing only| rules
+  rw -.->|same words| rules
   pv --> rules
   rules -->|pass| paste["Paste at cursor"]
   rules -->|fail| copy["Copy + reason"]

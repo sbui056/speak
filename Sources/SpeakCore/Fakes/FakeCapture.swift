@@ -86,31 +86,32 @@ public final class FakeTranscriber: Transcriber {
         public init() {}
     }
 
-    struct StartFailed: Error {}
+    private struct StartFailed: Error {}
 
-    final class Counter: Sendable {
-        let value = Mutex(0)
+    /// Shared with each session so cancels are counted across all of them.
+    private final class Recorder: Sendable {
+        let cancels = Mutex(0)
         let contexts = Mutex<[[String]]>([])
     }
 
     private let config: Mutex<Config>
-    private let cancels = Counter()
+    private let recorder = Recorder()
 
     public init(_ config: Config = Config()) {
         self.config = Mutex(config)
     }
 
     public func configure(_ change: (inout Config) -> Void) { config.withLock { change(&$0) } }
-    public var cancelCount: Int { cancels.value.withLock { $0 } }
+    public var cancelCount: Int { recorder.cancels.withLock { $0 } }
     /// The contextual strings each session was started with.
-    public var contexts: [[String]] { cancels.contexts.withLock { $0 } }
+    public var contexts: [[String]] { recorder.contexts.withLock { $0 } }
 
     public func start(frames: AsyncStream<AudioFrames>, contextualStrings: [String],
                       onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession {
-        cancels.contexts.withLock { $0.append(contextualStrings) }
+        recorder.contexts.withLock { $0.append(contextualStrings) }
         let config = self.config.withLock { $0 }
         if config.failToStart { throw StartFailed() }
-        let session = Session(config: config, frames: frames, cancels: cancels)
+        let session = Session(config: config, frames: frames, recorder: recorder)
         if !config.silent {
             onEvent(.active)
             onEvent(.partial(String(config.text.prefix(5))))
@@ -118,14 +119,15 @@ public final class FakeTranscriber: Transcriber {
         return session
     }
 
-    final class Session: TranscriberSession {
+    private final class Session: TranscriberSession {
         let config: Config
         let frames: AsyncStream<AudioFrames>
-        let cancels: Counter
-        init(config: Config, frames: AsyncStream<AudioFrames>, cancels: Counter) {
+        let recorder: Recorder
+
+        init(config: Config, frames: AsyncStream<AudioFrames>, recorder: Recorder) {
             self.config = config
             self.frames = frames
-            self.cancels = cancels
+            self.recorder = recorder
         }
 
         func finalize() async throws -> String {
@@ -138,7 +140,7 @@ public final class FakeTranscriber: Transcriber {
         }
 
         func cancel() async {
-            cancels.value.withLock { $0 += 1 }
+            recorder.cancels.withLock { $0 += 1 }
         }
     }
 }

@@ -19,6 +19,24 @@ final class AppModel {
     private(set) var supportedLocales: [Locale] = []
     /// Whether Concise and Polished can run, and why not.
     private(set) var rewriteAvailability: RewriteAvailability = .modelNotReady
+    /// Mirrors `SMAppService.mainApp`; refreshed when Speak becomes active.
+    private(set) var launchAtLogin = false
+    /// Registered, but macOS wants the user to approve it in Login Items.
+    private(set) var loginNeedsApproval = false
+    /// Called when anything the menu-bar icon depends on changes.
+    @ObservationIgnored var onIconInputsChange: (() -> Void)?
+    @ObservationIgnored private(set) var timings = TimingLog()
+
+    @ObservationIgnored private let hotkeySource: any HotkeySource
+    @ObservationIgnored private let transcriber: SpeechAnalyzerTranscriber?
+    @ObservationIgnored private let modelStore: (any SpeechModelStore)?
+    @ObservationIgnored private let rewriter: any Rewriter
+    @ObservationIgnored private var hotkeyTask: Task<Void, Never>?
+    @ObservationIgnored private var installing = false
+    /// Set at release: when, and in which mode; cleared once the dictation's timing is recorded.
+    @ObservationIgnored private var releasedAt: (ContinuousClock.Instant, RewriteMode)?
+
+    // MARK: Settings
 
     var mode: RewriteMode {
         didSet {
@@ -36,7 +54,7 @@ final class AppModel {
         }
     }
 
-    /// Keep the last C-HISTORY dictations (text only). Off by default.
+    /// Keep the last `Constants.historyMax` dictations (text only). Off by default.
     var historyOn: Bool {
         didSet {
             UserDefaults.standard.set(historyOn, forKey: Keys.history)
@@ -44,11 +62,6 @@ final class AppModel {
             Log.session.info("history on=\(self.historyOn, privacy: .public) entries=\(self.history.entries.count, privacy: .public)")
         }
     }
-
-    /// Mirrors `SMAppService.mainApp`; refreshed when Speak becomes active.
-    private(set) var launchAtLogin = false
-    /// Registered, but macOS wants the user to approve it in Login Items (`M-LOGIN-APPROVE`).
-    private(set) var loginNeedsApproval = false
 
     var hotkey: HotkeyChoice {
         didSet {
@@ -68,27 +81,17 @@ final class AppModel {
         }
     }
 
-    @ObservationIgnored private let hotkeySource: any HotkeySource
-    @ObservationIgnored private let transcriber: SpeechAnalyzerTranscriber?
-    @ObservationIgnored private let modelStore: (any SpeechModelStore)?
-    @ObservationIgnored private let rewriter: any Rewriter
-    @ObservationIgnored private var hotkeyTask: Task<Void, Never>?
-    @ObservationIgnored private var installing = false
-    @ObservationIgnored private var timings = TimingLog()
-    /// Set at release: when, and in which mode; cleared once the dictation's timing is recorded.
-    @ObservationIgnored private var releasedAt: (ContinuousClock.Instant, RewriteMode)?
-    /// Called when anything the menu-bar icon depends on changes.
-    @ObservationIgnored var onIconInputsChange: (() -> Void)?
-
     private enum Keys {
         static let hotkey = "hotkey"
         static let locale = "language"
         static let mode = "mode"
         static let previewPolicy = "previewPolicy"
-        /// The P2 bool that `previewPolicy` replaces; migrated once, then removed.
+        /// The older on/off setting that `previewPolicy` replaces; migrated once, then removed.
         static let alwaysPreview = "alwaysPreview"
         static let history = "history"
     }
+
+    // MARK: Lifecycle
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let defaults = UserDefaults.standard
@@ -174,24 +177,7 @@ final class AppModel {
         return !permissions.allGranted
     }
 
-    var statusLine: String {
-        menuStatus(permissions: permissions.granted, needsRelaunch: permissions.needsRelaunch,
-                   model: model, hotkey: hotkey)
-    }
-
-    var hasProblem: Bool {
-        !permissions.allGranted || permissions.needsRelaunch || model != .installed
-    }
-
-    func relaunch() {
-        let path = Bundle.main.bundlePath
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        // Wait for this instance to exit, then open a fresh one.
-        task.arguments = ["-c", "sleep 0.5; /usr/bin/open \"$0\"", path]
-        try? task.run()
-        NSApp.terminate(nil)
-    }
+    // MARK: Actions
 
     func setLaunchAtLogin(_ on: Bool) {
         let service = SMAppService.mainApp
@@ -202,28 +188,6 @@ final class AppModel {
             Log.perm.error("launch at login failed domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public)")
         }
         refreshLaunchAtLogin()
-    }
-
-    func openLoginItems() {
-        SMAppService.openSystemSettingsLoginItems()
-    }
-
-    /// Versions, permissions, model, settings, and timings; never text.
-    var diagnostics: String {
-        let info = Bundle.main.infoDictionary ?? [:]
-        let version = "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))"
-        let os = ProcessInfo.processInfo.operatingSystemVersion
-        return Diagnostics(
-            appVersion: version,
-            osVersion: "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
-            permissions: permissions.granted, model: model, rewrite: rewriteAvailability,
-            settings: [("mode", mode.rawValue), ("previewPolicy", previewPolicy.rawValue),
-                       ("hotkey", hotkey.rawValue), ("language", locale.identifier),
-                       ("history", historyOn ? "last\(Constants.historyMax)" : "off"),
-                       ("launchAtLogin", launchAtLogin ? (loginNeedsApproval ? "needsApproval" : "on") : "off"),
-                       ("dictionaryTerms", String(dictionary.terms.count)), ("fake", String(isFake))],
-            timings: timings
-        ).report
     }
 
     /// Re-checked on launch and whenever Speak becomes active, since Apple
@@ -295,7 +259,11 @@ final class AppModel {
         defer { installing = false }
         do {
             try await modelStore.install { percent in
-                Task { @MainActor [weak self] in self?.setModel(.downloading(percent: percent)) }
+                Task { @MainActor [weak self] in
+                    // Progress callbacks can land after the install finished.
+                    guard let self, model != .installed else { return }
+                    setModel(.downloading(percent: percent))
+                }
             }
             setModel(await modelStore.status())
         } catch {
@@ -306,8 +274,6 @@ final class AppModel {
     }
 
     private func setModel(_ status: SpeechModelStatus) {
-        // Progress callbacks can land after the install finished.
-        if case .downloading = status, model == .installed { return }
         model = status
         controller.send(.modelStatus(status))
         onIconInputsChange?()

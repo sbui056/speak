@@ -9,10 +9,10 @@ public actor Deliverer {
     /// interleaves at every await, and two pastes overlapping would snapshot each
     /// other's text instead of the user's clipboard.
     private var tail: Task<Void, Never>?
-    /// The last paste, undoable until it expires (C-UNDO) or is used.
+    /// The last paste, undoable until it expires or is used.
     private var undo: (offer: UndoOffer, expiry: Task<Void, Never>)?
     /// Why the last paste didn't get an undo offer, for logs.
-    public private(set) var lastUndoSkip: String?
+    private var lastUndoSkip: String?
 
     private struct PendingRestore {
         let snapshot: PasteboardSnapshot
@@ -43,7 +43,7 @@ public actor Deliverer {
         await serially { await $0.deliverNow(text, context: context, modifierWait: modifierWait) }
     }
 
-    /// A plain, retrievable copy (Copy last, and saving text on quit).
+    /// A plain, retrievable copy (Copy last).
     public func copy(_ text: String) async {
         await serially { await $0.copyNow(text) }
     }
@@ -59,11 +59,10 @@ public actor Deliverer {
     public func activate(_ pid: Int32) async {
         if await env.frontmostPID() == pid { return }
         await env.activate(pid: pid)
-        let step: Duration = .milliseconds(20)
         var waited: Duration = .zero
         while await env.frontmostPID() != pid, waited < Constants.activate {
-            _ = await Deadline(after: step, on: clock).reached()
-            waited += step
+            _ = await Deadline(after: Self.pollStep, on: clock).reached()
+            waited += Self.pollStep
         }
     }
 
@@ -98,6 +97,9 @@ public actor Deliverer {
     }
 
     // MARK: Private
+
+    /// How often to re-check while waiting on the frontmost app or held modifiers.
+    private static let pollStep: Duration = .milliseconds(20)
 
     private func serially<T: Sendable>(_ operation: @escaping @Sendable (isolated Deliverer) async -> T) async -> T {
         let previous = tail
@@ -216,12 +218,11 @@ public actor Deliverer {
 
     /// ⌘V is wrong if the user is still holding Shift or Option, so wait briefly.
     private func waitForModifiers(upTo limit: Duration) async -> Bool {
-        let step: Duration = .milliseconds(20)
         var waited: Duration = .zero
         while await env.modifiersDown() {
             if waited >= limit { return true }
-            _ = await Deadline(after: step, on: clock).reached()
-            waited += step
+            _ = await Deadline(after: Self.pollStep, on: clock).reached()
+            waited += Self.pollStep
         }
         return false
     }

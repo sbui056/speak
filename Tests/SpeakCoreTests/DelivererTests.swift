@@ -106,7 +106,7 @@ struct DelivererTests {
         let first = Task { await d.deliver("One", context: context) }
         #expect(await eventually { env.heldPastes == 1 })
         let second = Task { await d.deliver("Two", context: context) }
-        for _ in 0..<200 { await Task.yield() }
+        await settle()
         for _ in 0..<10_000 where env.pastes.count < 2 || env.heldPastes > 0 {
             env.releasePaste()
             await Task.yield()

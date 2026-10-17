@@ -1,48 +1,9 @@
 import Testing
 @testable import SpeakCore
 
-/// The whole session pipeline with fakes and a manual clock.
-@MainActor
-final class Harness {
-    let clock = TestClock()
-    let audio = FakeAudioSource()
-    let transcriber = FakeTranscriber()
-    let env = FakeDeliveryEnvironment()
-    let pasteboard = FakePasteboard()
-    let rewriter = FakeRewriter()
-    let hotkey: FakeHotkeySource
-    let controller: SessionController
-
-    init(spelling: FakeSpellChecker = FakeSpellChecker()) {
-        let clock = self.clock
-        hotkey = FakeHotkeySource(clock: { clock.elapsed })
-        controller = SessionController(
-            audio: audio, transcriber: transcriber,
-            deliverer: Deliverer(env: env, pasteboard: pasteboard, clock: clock),
-            rewriter: rewriter, spelling: spelling,
-            hotkey: hotkey, clock: clock)
-        let controller = self.controller
-        let keys = hotkey.start(.rightOption)
-        Task { await controller.run() }
-        Task { await controller.listen(to: keys) }
-    }
-
-    func hold(for duration: Duration) async {
-        hotkey.press()
-        await clock.advance(by: duration)
-        hotkey.release()
-        await clock.advance(by: .milliseconds(100))
-    }
-
-    var phase: Phase { controller.state.phase }
-    var hud: HUDContent? { controller.hud.content }
-}
-
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
 struct LifecycleTests {
-    static let fakeText = "Hello world, this is a fake transcript."
-
     @Test func holdProducesOneSessionAndPastes() async {
         let h = Harness()
         await h.hold(for: .milliseconds(1500))
@@ -51,7 +12,7 @@ struct LifecycleTests {
         #expect(await eventually { !h.audio.isOpen })
         #expect(h.env.pastes == [9])
         #expect(h.pasteboard.current.writes == [.transient])
-        #expect(h.controller.lastTranscript == Self.fakeText)
+        #expect(h.controller.lastTranscript == Harness.fakeText)
         #expect(await eventually { h.hud == .result(.inserted) })
         await h.clock.advance(by: Constants.restore)
         #expect(h.pasteboard.text == "banana")
@@ -250,7 +211,7 @@ struct LifecycleTests {
         let controller = h.controller
         _ = await h.clock.drive(Task { await controller.shutdown() })
         #expect(h.pasteboard.current.writes.first == .normal)
-        #expect(h.pasteboard.text == Self.fakeText)
+        #expect(h.pasteboard.text == Harness.fakeText)
         // The abandoned delivery must not paste into whatever is frontmost later.
         await h.clock.advance(by: Constants.modWait * 2)
         #expect(h.env.pastes.isEmpty)
@@ -265,7 +226,7 @@ struct LifecycleTests {
         let started = h.clock.elapsed
         #expect(await h.clock.advance(until: { h.phase == .idle }))
         #expect(h.clock.elapsed - started >= Constants.deliver - .milliseconds(150))
-        #expect(h.pasteboard.text == Self.fakeText)
+        #expect(h.pasteboard.text == Harness.fakeText)
         #expect(h.pasteboard.current.writes == [.transient, .normal])
         #expect(await eventually { h.hud == .result(.copied) })
         // The next dictation still works.
@@ -312,7 +273,7 @@ struct LifecycleTests {
         let h = Harness()
         await h.hold(for: .milliseconds(1500))
         #expect(await eventually { h.env.pastes.count == 1 })
-        #expect(h.pasteboard.text == Self.fakeText)
+        #expect(h.pasteboard.text == Harness.fakeText)
         h.hotkey.press()
         #expect(await eventually { h.pasteboard.text == "banana" })
         #expect(h.clock.elapsed < .milliseconds(1600) + Constants.restore)

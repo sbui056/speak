@@ -24,7 +24,8 @@ final class FoundationRewriter: Rewriter {
         let started = ContinuousClock.now
         do {
             // Greedy: a cleanup should be repeatable, not creative.
-            let reply = try await session.respond(to: prompt.prompt, options: GenerationOptions(sampling: .greedy, maximumResponseTokens: prompt.maxResponseTokens))
+            let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: prompt.maxResponseTokens)
+            let reply = try await session.respond(to: prompt.prompt, options: options)
             Log.rewrite.info("rewrite replied in \(ContinuousClock.now - started, privacy: .public)")
             return reply.content
         } catch let error as LanguageModelSession.GenerationError {
@@ -38,7 +39,7 @@ final class FoundationRewriter: Rewriter {
         }
     }
 
-    static func map(_ error: LanguageModelSession.GenerationError) -> RewriteError {
+    private static func map(_ error: LanguageModelSession.GenerationError) -> RewriteError {
         switch error {
         case .exceededContextWindowSize: .exceededContextWindow
         case .assetsUnavailable: .assetsUnavailable

@@ -9,7 +9,7 @@ import Synchronization
 /// delay (or drop) a key-up. The callback only decodes and yields; it doesn't log,
 /// touch the main actor, or call Accessibility.
 final class EventTapHotkey: HotkeySource {
-    private let state = Mutex<Running?>(nil)
+    private let running = Mutex<TapContext?>(nil)
 
     func start(_ key: HotkeyChoice) -> AsyncStream<HotkeyEvent> {
         stop()
@@ -30,36 +30,34 @@ final class EventTapHotkey: HotkeySource {
             Log.perm.error("event tap unavailable (Input Monitoring not granted?)")
             continuation.finish()
         } else {
-            state.withLock { $0 = Running(context: context) }
+            running.withLock { $0 = context }
         }
         return stream
     }
 
     func stop() {
-        state.withLock { running in
-            defer { running = nil }
-            return running
-        }?.context.uninstall()
+        running.withLock { context in
+            defer { context = nil }
+            return context
+        }?.uninstall()
     }
 
     /// For the stuck-key watchdog: is the hotkey possibly still held?
-    /// `keyState` alone reports a held Right Option as up, so also accept the
-    /// modifier flag. The watchdog only needs a reliable "definitely released".
-    func isKeyDown(_ key: HotkeyChoice) -> Bool {
-        if CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(key.keyCode)) { return true }
-        return CGEventSource.flagsState(.combinedSessionState).rawValue & key.familyMask != 0
-    }
+    func isKeyDown(_ key: HotkeyChoice) -> Bool { mayBeHeld(key) }
 
     func now() -> KeyTime { monotonicNow() }
-
-    private struct Running {
-        let context: TapContext
-    }
 }
 
 /// Monotonic time, the same base the tap stamps events with.
-func monotonicNow() -> KeyTime {
+private func monotonicNow() -> KeyTime {
     .nanoseconds(Int64(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)))
+}
+
+/// `keyState` alone reports a held Right Option as up, so also accept the
+/// modifier flag. Callers only need a reliable "definitely released".
+private func mayBeHeld(_ key: HotkeyChoice) -> Bool {
+    if CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(key.keyCode)) { return true }
+    return CGEventSource.flagsState(.combinedSessionState).rawValue & key.familyMask != 0
 }
 
 /// State shared with the C callback through its refcon pointer.
@@ -106,10 +104,7 @@ private final class TapContext: @unchecked Sendable {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            let flags = CGEventSource.flagsState(.combinedSessionState).rawValue
-            let down = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(decoder.key.keyCode))
-                || flags & decoder.key.familyMask != 0
-            continuation.yield(decoder.resync(keyIsDown: down, at: now))
+            continuation.yield(decoder.resync(keyIsDown: mayBeHeld(decoder.key), at: now))
         case .flagsChanged, .keyDown, .keyUp:
             let kind: HotkeyDecoder.Kind = type == .flagsChanged ? .flagsChanged : type == .keyDown ? .keyDown : .keyUp
             let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))

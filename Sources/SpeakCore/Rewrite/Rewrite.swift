@@ -31,7 +31,7 @@ public enum PreviewPolicy: String, CaseIterable, Sendable {
         }
     }
 
-    /// The saved choice, or the P2 "Always preview" toggle it replaces.
+    /// The saved choice, falling back to the older "Always preview" toggle it replaces.
     public static func stored(_ rawValue: String?, legacyAlwaysPreview: Bool) -> PreviewPolicy {
         if let rawValue { return PreviewPolicy(rawValue: rawValue) ?? .whenChanged }
         return legacyAlwaysPreview ? .always : .whenChanged
@@ -128,7 +128,7 @@ public func buildRewritePrompt(_ literal: String, mode: RewriteMode, terms: [Str
                   maxResponseTokens: wordCount(literal) * 3 + 40)
 }
 
-func stripAngleBrackets(_ text: String) -> String {
+private func stripAngleBrackets(_ text: String) -> String {
     text.filter { $0 != "<" && $0 != ">" }
 }
 
@@ -164,13 +164,13 @@ public func wordCount(_ text: String) -> Int {
 }
 
 /// Lowercased words with punctuation removed ("Don't," → "dont").
-func comparableWords(_ text: String) -> [String] {
+private func comparableWords(_ text: String) -> [String] {
     text.split(whereSeparator: \.isWhitespace)
         .map { String($0.lowercased().filter { $0.isLetter || $0.isNumber }) }
         .filter { !$0.isEmpty }
 }
 
-extension String {
+private extension String {
     var trimmed: String {
         String(drop(while: \.isWhitespace).reversed().drop(while: \.isWhitespace).reversed())
     }

@@ -16,9 +16,9 @@ final class SpeechAnalyzerTranscriber: Transcriber {
 
     /// Takes effect from the next session.
     func setLocale(_ locale: Locale) { localeSetting.withLock { $0 = locale } }
-    var locale: Locale { localeSetting.withLock { $0 } }
+    fileprivate var locale: Locale { localeSetting.withLock { $0 } }
 
-    func makeModule() -> SpeechTranscriber {
+    fileprivate func makeModule() -> SpeechTranscriber {
         SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults],
                           attributeOptions: [])
     }
@@ -69,9 +69,9 @@ final class SpeechAnalyzerTranscriber: Transcriber {
 }
 
 private final class AnalyzerSession: TranscriberSession {
-    let analyzer: SpeechAnalyzer
-    let results: Task<Void, any Error>
-    let transcript: Transcript
+    private let analyzer: SpeechAnalyzer
+    private let results: Task<Void, any Error>
+    private let transcript: Transcript
 
     init(analyzer: SpeechAnalyzer, results: Task<Void, any Error>, transcript: Transcript) {
         self.analyzer = analyzer
@@ -116,7 +116,7 @@ private final class Transcript: Sendable {
 }
 
 /// Joins segments, adding a space only where neither side has one.
-func joined(_ a: String, _ b: String) -> String {
+private func joined(_ a: String, _ b: String) -> String {
     guard let last = a.last, let first = b.first else { return a + b }
     return last.isWhitespace || first.isWhitespace ? a + b : a + " " + b
 }
@@ -136,8 +136,7 @@ final class AssetModelStore: SpeechModelStore {
         }
         switch await AssetInventory.status(forModules: [transcriber.makeModule()]) {
         case .installed: return .installed
-        case .downloading: return .downloading(percent: 0)
-        case .supported: return .downloading(percent: 0)
+        case .downloading, .supported: return .downloading(percent: 0)
         case .unsupported: return .unavailable(language: Self.name(locale))
         @unknown default: return .unavailable(language: Self.name(locale))
         }

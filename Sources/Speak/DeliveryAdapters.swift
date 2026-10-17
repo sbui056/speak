@@ -29,7 +29,7 @@ final class SystemDeliveryEnvironment: DeliveryEnvironment {
         switch error {
         case .success:
             guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return .error }
-            // Safe: the type ID was checked on the line above.
+            // Safe: the type ID was checked above.
             let element = unsafeDowncast(value, to: AXUIElement.self)
             AXUIElementSetMessagingTimeout(element, Self.axTimeout)
             return .element(ElementRef(AXBox(element)))

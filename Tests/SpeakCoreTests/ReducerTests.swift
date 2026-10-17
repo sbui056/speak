@@ -1,17 +1,6 @@
 import Testing
 @testable import SpeakCore
 
-private let s1 = SessionID(1)
-private func ms(_ n: Int) -> KeyTime { .milliseconds(n) }
-
-/// Runs events through the reducer, returning the final state and the effects of the last event.
-private func run(_ events: [SessionEvent], from start: SessionState = SessionState()) -> (SessionState, [Effect]) {
-    var state = start
-    var last: [Effect] = []
-    for event in events { (state, last) = reduce(state, event) }
-    return (state, last)
-}
-
 private let loud: SessionEvent = .audioPeak(s1, dBFS: -20)
 /// Pressed, held past the hold threshold, with audible audio.
 private let listening: [SessionEvent] = [.pressed(at: ms(0)), .timer(s1, .hold), loud]

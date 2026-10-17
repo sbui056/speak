@@ -42,9 +42,7 @@ final class PreviewPanelController {
 
     /// Upper middle of the screen with the pointer, where it's hard to miss.
     private func position() {
-        let mouse = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main
-        else { return }
+        guard let screen = NSScreen.withPointer else { return }
         let frame = screen.visibleFrame
         let size = panel.contentView?.fittingSize ?? panel.frame.size
         panel.setContentSize(size)

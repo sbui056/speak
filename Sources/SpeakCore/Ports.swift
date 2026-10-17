@@ -23,6 +23,14 @@ public enum HotkeyChoice: String, CaseIterable, Sendable {
         case .rightControl: 62
         }
     }
+
+    public var title: String {
+        switch self {
+        case .rightOption: "Right Option"
+        case .rightCommand: "Right Command"
+        case .rightControl: "Right Control"
+        }
+    }
 }
 
 public protocol HotkeySource: Sendable {
