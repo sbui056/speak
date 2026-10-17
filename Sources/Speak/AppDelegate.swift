@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var dictionary = DictionaryWindowController(dictionary: app.dictionary, history: app.history)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        MainMenu.install()
         let settings = self.settings
         let dictionary = self.dictionary
         menuBar = MenuBarController(app: app, openSettings: { settings.show() }, openDictionary: { dictionary.show() },

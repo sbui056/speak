@@ -57,6 +57,14 @@ struct LifecycleTests {
         #expect(h.pasteboard.text == "banana")
     }
 
+    @Test func theSessionsLoudestLevelOutlastsTheMeter() async {
+        let h = Harness()
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle })
+        #expect(h.controller.level == 0) // the meter drops when the mic closes
+        #expect(h.controller.loudestLevel == 0.3) // kept for the timing log
+    }
+
     @Test func testInsertGoesThroughTheRealDeliveryPath() async {
         let h = Harness()
         #expect(await h.controller.insert("Speak can type here.") == .inserted)

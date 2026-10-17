@@ -10,6 +10,8 @@ public final class SessionController {
     public let hud: HUDModel
     /// Mic level for the HUD meter, 0...1.
     public private(set) var level: Float = 0
+    /// The loudest level of the current or last session, for the timing log.
+    public private(set) var loudestLevel: Float = 0
     /// The rewrite waiting for the user's decision, while the preview is open.
     public private(set) var preview: PreviewContent? {
         didSet { if preview != oldValue { onPreviewChange?(preview) } }
@@ -139,6 +141,7 @@ public final class SessionController {
             let deliverer = self.deliverer
             rt.press = Task { await deliverer.capturePressContext() }
         case .startCapture(let id):
+            loudestLevel = 0
             startCapture(id)
         case .stopAudio(let id):
             guard runtime(id) != nil else { return }
@@ -296,6 +299,7 @@ public final class SessionController {
         Task { @MainActor in
             if self.runtime(id) != nil, self.state.phase == .arming || self.state.phase == .listening {
                 self.level = rms
+                self.loudestLevel = max(self.loudestLevel, rms)
             }
         }
     }

@@ -248,7 +248,12 @@ final class AppModel {
 
     /// Release starts the clock; the preview opening or the text landing stops it.
     private func measure(from: Phase, to: Phase) {
-        if from == .listening, to == .finalizing { releasedAt = (.now, controller.state.sessionMode) }
+        if from == .listening, to == .finalizing {
+            releasedAt = (.now, controller.state.sessionMode)
+            // A number only, kept for days, to tune the meter's decibel range to real voices.
+            let dB = LevelMeterScale.dBFS(rms: controller.loudestLevel)
+            Log.session.notice("level loudest dBFS=\(dB, privacy: .public)")
+        }
         if to == .awaitingAcceptance { finishTiming(previewed: true) }
         if to == .idle { releasedAt = nil }
     }

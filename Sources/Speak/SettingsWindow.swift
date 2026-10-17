@@ -164,7 +164,7 @@ struct SettingsView: View {
                     .lineLimit(2...4)
                     .focused($testFocused)
                 HStack {
-                    Text("Types a sample sentence here the same way Speak types into other apps.")
+                    Text("Types a sample sentence here the way Speak types into other apps. It doesn't use the microphone; to test your voice, dictate into any other app.")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Test dictation") { runTest() }
@@ -181,8 +181,12 @@ struct SettingsView: View {
         Task {
             // Let the field take focus before the paste looks for it.
             try? await Task.sleep(for: .milliseconds(150))
-            let outcome = await app.controller.insertIntoOwnField("Speak can type here.")
-            Log.insert.info("test dictation \(String(describing: outcome), privacy: .public)")
+            let sample = "Speak can type here."
+            let outcome = await app.controller.insertIntoOwnField(sample)
+            // "Inserted" means ⌘V was sent; check the field really received it.
+            try? await Task.sleep(for: .milliseconds(300))
+            let landed = testText.contains(sample)
+            Log.insert.info("test dictation \(String(describing: outcome), privacy: .public) landed=\(landed, privacy: .public)")
         }
     }
 

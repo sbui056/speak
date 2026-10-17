@@ -139,20 +139,22 @@ private struct HUDView: View {
     }
 }
 
-/// A simple bar. With Reduce Motion it jumps instead of animating.
+/// A simple bar on a decibel scale. With Reduce Motion it jumps instead of animating.
 private struct LevelMeter: View {
     let level: Float
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var fraction: Float { LevelMeterScale.fraction(rms: level) }
+
     var body: some View {
         ZStack(alignment: .leading) {
             Capsule().fill(.quaternary)
-            Capsule().fill(.secondary).frame(width: 60 * CGFloat(min(1, level * 4)))
+            Capsule().fill(.secondary).frame(width: 60 * CGFloat(fraction))
         }
         .frame(width: 60, height: 6)
         .animation(reduceMotion ? nil : .linear(duration: 0.05), value: level)
         .accessibilityLabel("Input level")
-        .accessibilityValue("\(Int(min(1, level * 4) * 100)) percent")
+        .accessibilityValue("\(Int(fraction * 100)) percent")
     }
 }
 
