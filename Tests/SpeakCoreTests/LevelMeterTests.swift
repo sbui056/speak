@@ -13,8 +13,14 @@ struct LevelMeterTests {
         #expect(LevelMeterScale.fraction(rms: 0.02) < LevelMeterScale.fraction(rms: 0.05))
     }
 
+    @Test func normalPeaksLeaveHeadroom() {
+        // The user's normal-voice peaks were −24…−17 dBFS (2026-10-17) and read too full.
+        #expect(LevelMeterScale.fraction(rms: 0.14) < 0.85) // −17 dBFS
+        #expect(LevelMeterScale.fraction(rms: 0.063) > 0.6) // −24 dBFS
+    }
+
     @Test func loudSpeechReachesFullAndClamps() {
-        #expect(LevelMeterScale.fraction(rms: 0.18) > 0.95)
+        #expect(LevelMeterScale.fraction(rms: 0.32) > 0.95) // −10 dBFS
         #expect(LevelMeterScale.fraction(rms: 1) == 1)
         #expect(LevelMeterScale.fraction(rms: 4) == 1)
     }

@@ -7,7 +7,7 @@ public enum LevelMeterScale {
     /// Quieter than this reads as empty (room noise).
     public static let floorDBFS: Float = -55
     /// Louder than this reads as full.
-    public static let ceilingDBFS: Float = -15
+    public static let ceilingDBFS: Float = -10
 
     /// 0...1 for an RMS level in 0...1.
     public static func fraction(rms: Float) -> Float {
