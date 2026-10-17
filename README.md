@@ -2,6 +2,8 @@
 
 Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all on-device.
 
+![Speak in action](docs/demo.gif)
+
 [![CI](https://github.com/sbui056/speak/actions/workflows/ci.yml/badge.svg)](https://github.com/sbui056/speak/actions/workflows/ci.yml)
 
 ## Features
@@ -14,6 +16,20 @@ Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all 
 - **Undo insert** for 30 seconds after a paste, and **Paste / Copy last transcript** from the menu bar.
 - **Safe fallbacks.** If Speak can't paste (no text field, secure input, keys still held), it copies the text and tells you why.
 - **Optional history** of your last 50 dictations, as text only. It's off by default.
+
+## See it
+
+**Polished: preview the rewrite, ⏎ to insert**
+
+![Polished mode preview](docs/demo-polish.gif)
+
+**Works in any app**
+
+![Dictating into Notes, Terminal, and a browser](docs/demo-anywhere.gif)
+
+**Teach it names**
+
+![Adding names to the dictionary](docs/demo-dictionary.gif)
 
 ## Install
 
@@ -91,12 +107,12 @@ The tests cover the session state machine, delivery rules, clipboard restore, un
 
 ## Latency
 
-Time from releasing the key to the text appearing, on an M2 MacBook Air, over 20+ dictations from Speak's own timing logs:
+Time from releasing the key to the text appearing, on an M2 MacBook Air, over 40+ dictations per mode, from Speak's own timing logs:
 
 | Mode | Median | p90 |
 |---|---|---|
-| Literal | _to be measured_ | _to be measured_ |
-| Polished (no preview) | _to be measured_ | _to be measured_ |
+| Literal | 0.11 s | 0.15 s |
+| Polished (no preview) | 0.99 s | 1.95 s |
 
 ## Known limits
 
