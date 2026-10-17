@@ -24,6 +24,9 @@ public enum Messages: Hashable, Sendable {
     case copied
     case restart
     case loginApprove
+    case typingTestPassed
+    case typingTestNotReceived
+    case typingTestFailed(reason: String)
 
     public var text: String {
         switch self {
@@ -50,6 +53,19 @@ public enum Messages: Hashable, Sendable {
         case .copied: "Copied to clipboard"
         case .restart: "Speech engine stopped responding — restart Speak"
         case .loginApprove: "Approve Speak in System Settings → General → Login Items"
+        case .typingTestPassed: "Speak can type into apps"
+        case .typingTestNotReceived: "The paste was sent, but the text didn't arrive"
+        case .typingTestFailed(let reason): "Couldn't type: \(reason)"
+        }
+    }
+
+    /// The Settings typing test's verdict. `landed` says whether the sample
+    /// actually showed up in the test field, since a sent ⌘V can still go nowhere.
+    public static func typingTest(_ outcome: DeliveryOutcome, landed: Bool) -> Messages {
+        switch outcome {
+        case .inserted: landed ? .typingTestPassed : .typingTestNotReceived
+        case .copied(let reason): .typingTestFailed(reason: reason.text)
+        case .empty: .typingTestNotReceived
         }
     }
 }

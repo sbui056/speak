@@ -40,6 +40,7 @@ private struct SettingsView: View {
     let openHistory: () -> Void
     @State private var confirmDelete = false
     @State private var testText = ""
+    @State private var testResult: Messages?
     @State private var copiedDiagnostics = false
     @FocusState private var testFocused: Bool
 
@@ -169,6 +170,11 @@ private struct SettingsView: View {
                     Spacer()
                     Button("Type sample") { runTest() }
                 }
+                if let testResult {
+                    let passed = testResult == .typingTestPassed
+                    Label(testResult.text, systemImage: passed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(passed ? .green : .red)
+                }
             }
         }
         .formStyle(.grouped)
@@ -180,6 +186,9 @@ private struct SettingsView: View {
     private static let testSample = "Speak can type here."
 
     private func runTest() {
+        // Start empty, so a sample left over from an earlier run can't count as landed.
+        testText = ""
+        testResult = nil
         testFocused = true
         Task {
             // Let the field take focus before the paste looks for it.
@@ -189,6 +198,7 @@ private struct SettingsView: View {
             // "Inserted" means ⌘V was sent; check the field really received it.
             try? await Task.sleep(for: .milliseconds(300))
             let landed = testText.contains(sample)
+            testResult = Messages.typingTest(outcome, landed: landed)
             Log.insert.info("test dictation \(String(describing: outcome), privacy: .public) landed=\(landed, privacy: .public)")
         }
     }

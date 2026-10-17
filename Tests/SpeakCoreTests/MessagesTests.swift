@@ -27,10 +27,23 @@ struct MessagesTests {
         (.copied, "Copied to clipboard"),
         (.restart, "Speech engine stopped responding — restart Speak"),
         (.loginApprove, "Approve Speak in System Settings → General → Login Items"),
+        (.typingTestPassed, "Speak can type into apps"),
+        (.typingTestNotReceived, "The paste was sent, but the text didn't arrive"),
+        (.typingTestFailed(reason: "No text field focused — copied to clipboard"),
+         "Couldn't type: No text field focused — copied to clipboard"),
     ]
 
     @Test(arguments: expected)
     func exactText(message: Messages, text: String) {
         #expect(message.text == text)
+    }
+
+    @Test func typingTestVerdict() {
+        #expect(Messages.typingTest(.inserted, landed: true) == .typingTestPassed)
+        // ⌘V was sent but the field never changed.
+        #expect(Messages.typingTest(.inserted, landed: false) == .typingTestNotReceived)
+        #expect(Messages.typingTest(.copied(.accessibility), landed: false)
+            == .typingTestFailed(reason: Messages.accessibility.text))
+        #expect(Messages.typingTest(.empty, landed: false) == .typingTestNotReceived)
     }
 }
