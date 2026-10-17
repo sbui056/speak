@@ -37,8 +37,6 @@ public enum Constants {
     ]
     /// Rewrite timeout.
     public static let rewriteTimeout: Duration = .milliseconds(2500)
-    /// Timeout for the first rewrite after launch, used only if a cold start needs it.
-    public static let rewriteTimeoutCold: Duration = .seconds(4)
     /// Transcriber start watchdog.
     public static let sttStart: Duration = .seconds(3)
     /// Maximum partial-text refresh rate in the HUD (Hz).
