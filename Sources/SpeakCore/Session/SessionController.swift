@@ -226,7 +226,8 @@ public final class SessionController {
                 var (outcome, timings) = await deliverer.deliverTimed(
                     text, context: context, modifierWait: returnToApp ? Constants.handoffModWait : Constants.modWait)
                 timings.activate = activate ?? (returnToApp ? .zero : nil)
-                self?.onStage?(.delivered(timings))
+                // A delivery the watchdog already gave up on belongs to no timed dictation.
+                if let self, state.current == id, state.phase == .delivering { onStage?(.delivered(timings)) }
                 self?.send(.delivered(id, outcome))
             })
         case .copyToPasteboard(let text):

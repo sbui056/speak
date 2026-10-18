@@ -235,6 +235,20 @@ struct LifecycleTests {
         #expect(await eventually { h.phase == .delivering })
     }
 
+    @Test func pasteFinishingAfterTheRescueIsNotTimed() async {
+        let h = Harness()
+        var stages: [SessionStage] = []
+        h.controller.onStage = { stages.append($0) }
+        h.env.holdPastes()
+        await h.hold(for: .milliseconds(1000))
+        #expect(await eventually { h.phase == .delivering })
+        #expect(await h.clock.advance(until: { h.phase == .idle }))
+        // The rescued dictation was not delivered by paste, so the late ⌘V reports no stage.
+        h.env.releasePaste()
+        await settle()
+        #expect(!stages.contains { if case .delivered = $0 { true } else { false } })
+    }
+
     @Test func staleStopNeverClosesTheNextSessionsMic() async {
         let h = Harness()
         h.audio.configure { $0.gated = true }
