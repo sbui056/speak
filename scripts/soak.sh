@@ -12,7 +12,7 @@ count=${1:-100}
 swift build -c debug >/dev/null
 bin="$(swift build -c debug --show-bin-path)/Speak"
 out=$(mktemp -t speak-soak)
-trap 'kill "$pid" 2>/dev/null || true; rm -f "$out"' EXIT
+trap 'kill "$pid" 2>/dev/null || true; rm -f "$out" "$out.leaks"' EXIT
 
 SPEAK_FAKE=1 SPEAK_SOAK="$count" MallocStackLogging=1 "$bin" >"$out" 2>/dev/null &
 pid=$!
@@ -36,5 +36,4 @@ own=$(awk '
   inblock && $2 == "Speak" { ours = 1 }
   END { print total + 0 }' "$out.leaks")
 echo "leaks from Speak code: $own"
-rm -f "$out.leaks"
 [ "$own" -eq 0 ]
