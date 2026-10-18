@@ -1,0 +1,34 @@
+name: Bug report
+description: Something didn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what Speak did instead.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac model
+      placeholder: macOS 26.1, MacBook Air M2
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [Literal, Concise, Polished]
+  - type: input
+    id: app
+    attributes:
+      label: App you were dictating into
+      placeholder: Notes, Slack, Terminal…
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Settings → General → Copy diagnostics, then paste here. It contains versions, permissions, settings, and timings, never your text.
+      render: text

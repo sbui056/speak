@@ -14,8 +14,8 @@ Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all 
 
 - **Push to talk anywhere.** Hold Right Option (or Right Command / Right Control), speak, release. The text is pasted where your cursor is, and your clipboard is put back afterwards.
 - **On-device speech recognition** with Apple's SpeechAnalyzer, with a live preview of the words while you talk.
-- **Three modes.** *Literal* types exactly what you said, with spacing tidied and dictionary spellings applied. *Concise* and *Polished* rewrite it with Apple Intelligence's on-device model.
-- **No surprise rewrites.** When a rewrite changes your words, a preview shows the difference first. Choose Insert, Insert literal, Edit, or Copy. You can set **Show preview** to *Always*, *When words change* (the default), or *Never*.
+- **Three modes.** *Literal* types exactly what you said, with spacing and the first capital tidied and dictionary spellings applied. *Concise* and *Polished* rewrite it with Apple Intelligence's on-device model.
+- **No surprise rewrites.** When a rewrite changes your words, a preview shows the difference first. Choose Insert, Insert literal, Edit, Copy, or Cancel. You can set **Show preview** to *Always*, *When words change* (the default), or *Never*.
 - **Dictionary** for names and jargon ("Siobhan", "Kubernetes"). Speak passes the terms to the recognizer and fixes near-misses.
 - **Undo insert** for 30 seconds after a paste, and **Paste / Copy last transcript** from the menu bar.
 - **Safe fallbacks.** If Speak can't paste (no text field, secure input, keys still held), it copies the text and tells you why.
@@ -121,7 +121,7 @@ Time from releasing the key to the text appearing, on an M2 MacBook Air, from Sp
 | Literal | 0.12 s | 0.20 s | 182 |
 | Polished (no preview) | 0.58 s | 0.95 s | 21 |
 
-Polished was 0.99 s / 1.95 s before the rewrite started preparing its model session at key press and switched to the guardrails meant for rewriting the user's own text.
+Polished was 0.99 s / 1.95 s before the rewrite started preparing its model session at key press, switched to the guardrails meant for rewriting the user's own text, and the speech analyzer got user-initiated priority. The Polished sample is one build's worth (21 dictations); it will grow with use.
 
 ## Known limits
 
