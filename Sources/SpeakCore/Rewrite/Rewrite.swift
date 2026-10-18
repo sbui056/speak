@@ -200,10 +200,14 @@ private func droppedOnlyFillers(from input: [String], keeping output: [String]) 
     let fold = { (word: String) in word.folding(options: .diacriticInsensitive, locale: nil) }
     let kept = Set(output.map(fold))
     let hasDigits = output.contains { $0.contains(where: \.isNumber) }
-    return input.map(fold).allSatisfy { word in
-        kept.contains(word) || droppable.contains(word)
+    let words = input.map(fold)
+    // Only neighbours may join, so "no" isn't kept just because "now" starts with it.
+    return words.indices.allSatisfy { i in
+        let word = words[i]
+        return kept.contains(word) || droppable.contains(word)
             || (hasDigits && numberWords.contains(word))
-            || kept.contains { $0.count > word.count && ($0.hasPrefix(word) || $0.hasSuffix(word)) }
+            || (i > 0 && kept.contains(words[i - 1] + word))
+            || (i + 1 < words.count && kept.contains(word + words[i + 1]))
     }
 }
 
