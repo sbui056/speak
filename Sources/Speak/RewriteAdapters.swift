@@ -9,9 +9,13 @@ final class FoundationRewriter: Rewriter {
     /// Made at key press and used by the next rewrite only, so the model has
     /// already read the instructions by the time the transcript arrives.
     private let ready = Mutex<(instructions: String, session: LanguageModelSession)?>(nil)
+    /// Apple's guardrails for transforming the user's own text (user-approved
+    /// 2026-10-18): about 0.13 s faster to the first token, same replies on the
+    /// corpus. Speak's injection guard still checks every reply.
+    private let model = SystemLanguageModel(useCase: .general, guardrails: .permissiveContentTransformations)
 
     func availability() async -> RewriteAvailability {
-        switch SystemLanguageModel.default.availability {
+        switch model.availability {
         case .available: return .available
         case .unavailable(.appleIntelligenceNotEnabled): return .appleIntelligenceOff
         case .unavailable(.deviceNotEligible): return .deviceNotEligible
@@ -20,8 +24,8 @@ final class FoundationRewriter: Rewriter {
     }
 
     func prewarm(instructions: String) async {
-        guard SystemLanguageModel.default.isAvailable else { return }
-        let session = LanguageModelSession(model: .default, tools: [], instructions: instructions)
+        guard model.isAvailable else { return }
+        let session = LanguageModelSession(model: model, tools: [], instructions: instructions)
         session.prewarm(promptPrefix: Prompt(transcriptPrefix))
         ready.withLock { $0 = (instructions, session) }
     }
@@ -34,7 +38,7 @@ final class FoundationRewriter: Rewriter {
             return ready
         }
         let session = prepared?.instructions == prompt.instructions ? prepared!.session
-            : LanguageModelSession(model: .default, tools: [], instructions: prompt.instructions)
+            : LanguageModelSession(model: model, tools: [], instructions: prompt.instructions)
         Log.rewrite.info("rewrite session prepared=\(prepared?.instructions == prompt.instructions, privacy: .public)")
         let started = ContinuousClock.now
         do {
