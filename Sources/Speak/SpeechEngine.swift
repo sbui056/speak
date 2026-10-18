@@ -31,7 +31,9 @@ final class SpeechAnalyzerTranscriber: Transcriber {
     func start(frames: AsyncStream<AudioFrames>, contextualStrings: [String],
                onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession {
         let module = makeModule()
-        let analyzer = SpeechAnalyzer(modules: [module])
+        // The user is waiting on the result; lingering keeps the model loaded
+        // between dictations close together.
+        let analyzer = SpeechAnalyzer(modules: [module], options: .init(priority: .userInitiated, modelRetention: .lingering))
         if !contextualStrings.isEmpty {
             // Biases recognition toward the user's names and terms.
             let context = AnalysisContext()

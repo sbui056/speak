@@ -13,7 +13,7 @@ public enum TimingLine: Equatable, Sendable {
             "dictation mode=\(mode.rawValue) preview=\(previewed) \(seconds(duration))" + fields([
                 ("finalize", stages.finalize), ("cleanup", stages.cleanup), ("first", stages.firstToken),
                 ("rewrite", stages.rewrite), ("modwait", stages.modWait), ("paste", stages.paste),
-            ])
+            ]) + (stages.speculation.map { " spec=\($0.rawValue)" } ?? "")
         case .handoff(let t):
             "handoff" + fields([("activate", t.activate), ("modwait", t.modWait), ("paste", t.paste)])
         }
@@ -43,16 +43,26 @@ public struct DictationStages: Equatable, Sendable {
     public var modWait: Duration?
     /// The delivery itself, after the modifier wait.
     public var paste: Duration?
+    /// Whether a rewrite started at release on the partial transcript was used.
+    public var speculation: Speculation?
 
     public init(finalize: Duration? = nil, cleanup: Duration? = nil, firstToken: Duration? = nil,
-                rewrite: Duration? = nil, modWait: Duration? = nil, paste: Duration? = nil) {
+                rewrite: Duration? = nil, modWait: Duration? = nil, paste: Duration? = nil,
+                speculation: Speculation? = nil) {
         self.finalize = finalize
         self.cleanup = cleanup
         self.firstToken = firstToken
         self.rewrite = rewrite
         self.modWait = modWait
         self.paste = paste
+        self.speculation = speculation
     }
+}
+
+/// A rewrite started at release on the partial transcript: `hit` when the final
+/// prompt was identical and its reply was used, `miss` when it was thrown away.
+public enum Speculation: String, Equatable, Sendable {
+    case hit, miss
 }
 
 /// How long a delivery took. `activate` is set only after the preview.
@@ -92,9 +102,10 @@ public struct DictationTimer: Sendable {
         switch stage {
         case .finalized: stages.finalize = instant - last
         case .literalReady: stages.cleanup = instant - last
-        case .rewritten(let firstToken):
+        case .rewritten(let firstToken, let speculation):
             stages.rewrite = instant - last
             stages.firstToken = firstToken
+            stages.speculation = speculation
         case .delivered(let t):
             stages.modWait = t.modWait
             stages.paste = t.paste

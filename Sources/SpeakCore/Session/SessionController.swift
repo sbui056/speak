@@ -59,6 +59,8 @@ public final class SessionController {
         var transcriber: Task<(any TranscriberSession)?, Never>?
         /// Timers, finalize, and delivery; cancelled when the session ends.
         var cancellable: [Task<Void, Never>] = []
+        /// The rewrite started at release on the partial transcript, if any.
+        var speculation: (prompt: RewritePrompt, reply: Task<RewriteReply?, Never>)?
         init(id: SessionID) { self.id = id }
     }
 
@@ -185,9 +187,21 @@ public final class SessionController {
             let rewriter = self.rewriter
             let instructions = rewriteInstructions(mode, terms: terms)
             Task { await rewriter.prewarm(instructions: instructions) }
+        case .speculateRewrite(let id, let partial, let mode):
+            guard let rt = runtime(id) else { return }
+            // Cleaned exactly as the final transcript will be, so an unchanged
+            // transcript gives an identical prompt.
+            let literal = makeLiteral(partial, terms: terms, spelling: spelling, language: language)
+            let words = wordCount(literal)
+            guard words >= Constants.rewriteMinWords, words <= Constants.rewriteMaxWords else { return }
+            let prompt = buildRewritePrompt(literal, mode: mode, terms: terms)
+            let rewriter = self.rewriter
+            rt.speculation = (prompt, Task { try? await rewriter.respond(to: prompt) })
         case .rewrite(let id, let literal, let mode):
             guard let rt = runtime(id) else { return }
-            rt.cancellable.append(rewrite(id, literal, mode))
+            let speculation = rt.speculation
+            rt.speculation = nil
+            rt.cancellable.append(rewrite(id, literal, mode, speculation: speculation))
         case .showPreview(let id, let literal, let rewrite):
             preview = PreviewContent(id: id, mode: state.sessionMode, literal: literal, rewrite: rewrite)
         case .closePreview:
@@ -240,26 +254,41 @@ public final class SessionController {
         case .endSession(let id):
             guard let rt = runtime(id) else { return }
             rt.cancellable.forEach { $0.cancel() }
+            rt.speculation?.reply.cancel()
             runtime = nil
         }
     }
 
     /// Asks the model, then keeps the reply only if it passes the injection
     /// guard. The reducer's watchdog decides when to stop waiting.
-    private func rewrite(_ id: SessionID, _ literal: String, _ mode: RewriteMode) -> Task<Void, Never> {
+    /// A speculation started on the same prompt is used as is (greedy decoding
+    /// gives the same reply); any other is cancelled and the model asked afresh.
+    private func rewrite(_ id: SessionID, _ literal: String, _ mode: RewriteMode,
+                         speculation: (prompt: RewritePrompt, reply: Task<RewriteReply?, Never>)?) -> Task<Void, Never> {
         let rewriter = self.rewriter
         let terms = self.terms
         return Task { [weak self] in
             let prompt = buildRewritePrompt(literal, mode: mode, terms: terms)
             var accepted: String?
-            let reply = try? await rewriter.respond(to: prompt)
+            let outcome: Speculation? = speculation.map { $0.prompt == prompt ? .hit : .miss }
+            let reply: RewriteReply?
+            if let speculation, outcome == .hit {
+                reply = await withTaskCancellationHandler { await speculation.reply.value }
+                    onCancel: { speculation.reply.cancel() }
+            } else {
+                speculation?.reply.cancel()
+                // The speculation used up the session prepared at key press; a
+                // fresh one prepared just now still answers sooner than none.
+                if speculation != nil { await rewriter.prewarm(instructions: prompt.instructions) }
+                reply = try? await rewriter.respond(to: prompt)
+            }
             if let reply {
                 accepted = validateRewrite(reply.text, literal: literal, mode: mode, terms: terms)
                 if accepted == nil { self?.onRewriteRejected?(mode) }
             }
             // A reply after the watchdog gave up belongs to no timed dictation.
             if let self, state.current == id, state.phase == .rewriting {
-                onStage?(.rewritten(firstToken: reply?.firstToken))
+                onStage?(.rewritten(firstToken: reply?.firstToken, speculation: outcome))
             }
             self?.send(.rewritten(id, accepted))
         }

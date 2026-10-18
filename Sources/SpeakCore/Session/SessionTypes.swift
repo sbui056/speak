@@ -53,7 +53,8 @@ public enum TimerKind: Equatable, Sendable {
 public enum SessionStage: Equatable, Sendable {
     case finalized
     case literalReady
-    case rewritten(firstToken: Duration?)
+    /// `firstToken` counts from the model request, which on a speculation hit began before the release.
+    case rewritten(firstToken: Duration?, speculation: Speculation? = nil)
     case delivered(DeliveryTimings)
 }
 
@@ -140,6 +141,9 @@ public enum Effect: Equatable, Sendable {
     /// Load the language model ahead of a likely rewrite.
     case prewarmRewriter(RewriteMode)
     case rewrite(SessionID, String, RewriteMode)
+    /// At release, start the rewrite on the last partial transcript while the
+    /// final one is still coming. Used only if the final prompt turns out identical.
+    case speculateRewrite(SessionID, String, RewriteMode)
     case showPreview(SessionID, literal: String, rewrite: String)
     case closePreview
     case cancelTranscriber(SessionID)

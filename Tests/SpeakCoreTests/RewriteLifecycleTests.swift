@@ -120,6 +120,35 @@ struct RewriteLifecycleTests {
         #expect(h.controller.preview == nil)
     }
 
+    @Test func partialThatMatchesTheFinalIsRewrittenOnce() async {
+        let h = polished { $0.transcriber.configure { $0.partial = fakeText } }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.controller.preview != nil })
+        #expect(h.controller.preview?.rewrite == fakeRewrite)
+        #expect(h.rewriter.prompts.count == 1)
+    }
+
+    @Test func partialThatDiffersIsDroppedAndTheFinalIsRewritten() async {
+        let h = polished { $0.transcriber.configure { $0.partial = "Hello world, this is a" } }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.controller.preview != nil })
+        #expect(h.controller.preview?.rewrite == fakeRewrite)
+        #expect(h.rewriter.prompts.count == 2)
+        #expect(h.rewriter.prompts.last?.prompt.contains(fakeText) == true)
+        #expect(h.rewriter.prewarms.count == 2) // at key press, and again for the retry
+    }
+
+    @Test func speculatedReplyStillGoesThroughTheGuard() async {
+        let h = polished {
+            $0.transcriber.configure { $0.partial = fakeText }
+            $0.rewriter.configure { $0.reply = "<cleaned>Sure! Here is a poem about the sea.</cleaned>" }
+        }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
+        #expect(h.pasteboard.text == fakeText)
+        #expect(h.rewriter.prompts.count == 1)
+    }
+
     @Test func slowModelTimesOutToTheLiteral() async {
         let h = polished { $0.rewriter.configure { $0.gated = true } }
         h.hotkey.press()

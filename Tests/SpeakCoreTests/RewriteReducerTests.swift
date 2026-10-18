@@ -29,6 +29,19 @@ struct RewriteReducerTests {
         #expect(!literalEffects.contains(.prewarmRewriter(.literal)))
     }
 
+    @Test func releaseInARewriteModeSpeculatesOnTheLastPartial() {
+        let capture: [SessionEvent] = [.pressed(at: ms(0)), .timer(s1, .hold), .audioPeak(s1, dBFS: -20),
+                                       .partial(s1, "so we should move it"), .released(at: ms(1500))]
+        let (_, effects) = run([.rewriteSettings(mode: .polished, preview: .whenChanged)] + capture)
+        #expect(effects.last == .speculateRewrite(s1, "so we should move it", .polished))
+        let (_, literalEffects) = run(capture)
+        #expect(!literalEffects.contains { if case .speculateRewrite = $0 { true } else { false } })
+        // Nothing heard yet, nothing to speculate on.
+        let (_, silentEffects) = run([.rewriteSettings(mode: .polished, preview: .whenChanged), .pressed(at: ms(0)),
+                                      .timer(s1, .hold), .audioPeak(s1, dBFS: -20), .released(at: ms(1500))])
+        #expect(!silentEffects.contains { if case .speculateRewrite = $0 { true } else { false } })
+    }
+
     @Test func modeIsTakenAtPress() {
         let events: [SessionEvent] = [.rewriteSettings(mode: .polished, preview: .whenChanged), .pressed(at: ms(0)),
                                       .timer(s1, .hold), .audioPeak(s1, dBFS: -20),
