@@ -5,8 +5,6 @@
 # counts, so soak runs of the debug build (scripts/soak.sh) never skew it.
 # Previewed rewrites are listed separately: they stop the clock when the preview
 # opens, and what happens after the user accepts is reported as "handoff".
-# Rewrites started at release on the partial transcript get extra rows,
-# "spec=hit" (reply used) and "spec=miss" (thrown away and asked again).
 set -eu
 window=${1:-7d}
 /usr/bin/log show --last "$window" --predicate 'subsystem == "io.github.sbui056.speak" AND category == "session" AND processImagePath ENDSWITH ".app/Contents/MacOS/Speak"' 2>/dev/null |
@@ -27,21 +25,15 @@ window=${1:-7d}
       for (k = 1; k <= nstages; k++) out = out stage(g, order[k])
       return out
     }
-    function record(g, i,   j, total, kv) {
-      if (!(g in seen)) { seen[g] = 1; groups[++ngroups] = g }
-      total = $(i + 3); sub(/s$/, "", total)
-      tot[g, ++n[g]] = total + 0
-      for (j = i + 4; j <= NF; j++) if ($j !~ /^spec=/ && split($j, kv, "=") == 2) { sub(/s$/, "", kv[2]); val[g, kv[1], ++cnt[g, kv[1]]] = kv[2] + 0 }
-    }
     BEGIN { nstages = split("finalize cleanup first rewrite activate modwait paste", order, " ") }
     / timing dictation mode=/ {
       for (i = 1; i <= NF; i++) if ($i == "dictation") break
       split($(i + 1), m, "="); split($(i + 2), p, "=")
-      spec = ""
-      for (j = i + 4; j <= NF; j++) if ($j ~ /^spec=/) spec = $j
-      record(m[2] " " p[2], i)
-      # Rewrites started at release on the partial transcript also get their own row.
-      if (spec != "") record(m[2] " " p[2] " " spec, i)
+      g = m[2] " " p[2]
+      if (!(g in seen)) { seen[g] = 1; groups[++ngroups] = g }
+      total = $(i + 3); sub(/s$/, "", total)
+      tot[g, ++n[g]] = total + 0
+      for (j = i + 4; j <= NF; j++) if (split($j, kv, "=") == 2) { sub(/s$/, "", kv[2]); val[g, kv[1], ++cnt[g, kv[1]]] = kv[2] + 0 }
     }
     / timing handoff / {
       g = "handoff"; nh++
@@ -68,7 +60,7 @@ window=${1:-7d}
       for (a = 1; a <= ngroups; a++) {
         g = groups[a]; split(g, k, " ")
         for (i = 1; i <= n[g]; i++) { x[i] = tot[g, i]; y[i] = tot[g, i] }
-        printf "%-9s preview=%-5s n=%-4d median=%.3fs p90=%.3fs%s\n", k[1], k[2], n[g], median(x, n[g]), p90(y, n[g]), k[3] ? "  " k[3] : ""
+        printf "%-9s preview=%-5s n=%-4d median=%.3fs p90=%.3fs\n", k[1], k[2], n[g], median(x, n[g]), p90(y, n[g])
         s = stages(g); if (s != "") printf "          stage medians:%s\n", s
       }
       if (nh) printf "handoff   n=%-4d stage medians:%s\n", nh, stages("handoff")

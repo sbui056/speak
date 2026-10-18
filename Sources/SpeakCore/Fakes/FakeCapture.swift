@@ -78,8 +78,6 @@ public final class FakeAudioSource: AudioSource {
 public final class FakeTranscriber: Transcriber {
     public struct Config: Sendable {
         public var text = "Hello world, this is a fake transcript."
-        /// The partial reported at start; nil means the first five characters of `text`.
-        public var partial: String?
         /// Never finish finalizing, to exercise the watchdog.
         public var hangOnFinalize = false
         /// Never report any activity, to exercise the start watchdog.
@@ -116,7 +114,7 @@ public final class FakeTranscriber: Transcriber {
         let session = Session(config: config, frames: frames, recorder: recorder)
         if !config.silent {
             onEvent(.active)
-            onEvent(.partial(config.partial ?? String(config.text.prefix(5))))
+            onEvent(.partial(String(config.text.prefix(5))))
         }
         return session
     }

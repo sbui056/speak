@@ -137,9 +137,6 @@ struct Reducer {
         emit(.stopAudio(id), .finalizeTranscriber(id),
              .startTimer(id, .finalize, after: Constants.finalize),
              .showHUD(.processing))
-        if state.sessionMode != .literal, !state.lastPartial.isEmpty {
-            emit(.speculateRewrite(id, state.lastPartial, state.sessionMode))
-        }
     }
 
     mutating func partial(_ text: String) {

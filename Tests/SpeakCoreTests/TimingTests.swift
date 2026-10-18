@@ -18,13 +18,6 @@ struct TimingTests {
             + " finalize=0.050s cleanup=0.001s first=0.300s rewrite=0.900s")
     }
 
-    @Test func speculationOutcomeEndsTheLine() {
-        let line = TimingLine.dictation(mode: .polished, previewed: false, duration: .milliseconds(500),
-                                        stages: DictationStages(firstToken: .milliseconds(380), rewrite: .milliseconds(200),
-                                                                speculation: .hit))
-        #expect(line.text == "dictation mode=polished preview=false 0.500s first=0.380s rewrite=0.200s spec=hit")
-    }
-
     @Test func handoffLineHasItsThreeSteps() {
         let line = TimingLine.handoff(DeliveryTimings(activate: .milliseconds(120), modWait: .milliseconds(40),
                                                       paste: .milliseconds(20)))
