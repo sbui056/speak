@@ -114,12 +114,14 @@ The tests cover the session state machine, delivery rules, clipboard restore, un
 
 ## Latency
 
-Time from releasing the key to the text appearing, on an M2 MacBook Air, over 40+ dictations per mode, from Speak's own timing logs:
+Time from releasing the key to the text appearing, on an M2 MacBook Air, from Speak's own timing logs:
 
-| Mode | Median | p90 |
-|---|---|---|
-| Literal | 0.11 s | 0.15 s |
-| Polished (no preview) | 0.99 s | 1.95 s |
+| Mode | Median | p90 | Dictations |
+|---|---|---|---|
+| Literal | 0.11 s | 0.15 s | 108 |
+| Polished (no preview) | 0.58 s | 0.95 s | 21 |
+
+Polished was 0.99 s / 1.95 s before the rewrite started preparing its model session at key press and switched to the guardrails meant for rewriting the user's own text.
 
 ## Known limits
 

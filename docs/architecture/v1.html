@@ -410,7 +410,7 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
         <tr><td>Speech or model framework hangs</td><td>Every framework call has a watchdog: start, finalize, and rewrite. Repeated hangs prompt a restart.</td><td>LifecycleTests</td></tr>
         <tr><td>Late result from a cancelled session</td><td>Every async result carries a session token. Mismatched tokens are dropped.</td><td>ReducerTests property test</td></tr>
         <tr><td>Rewrite answers or obeys the dictation</td><td>Angle brackets stripped, a single tagged output, and length and word-overlap checks. On any doubt, fall back to literal.</td><td>RewriteTests injection fixtures</td></tr>
-        <tr><td>On-device model errors or slow first load</td><td>Prewarm at launch and when listening in a rewrite mode. Every model error maps to a literal fallback with a short note.</td><td>RewriteLifecycleTests</td></tr>
+        <tr><td>On-device model errors or slow first load</td><td>Prewarm at launch; at key press in a rewrite mode, prepare the session the rewrite will use. Every model error maps to a literal fallback with a short note.</td><td>RewriteLifecycleTests</td></tr>
         <tr><td>Dictionary “fixes” real words</td><td>Fuzzy matching applies only to words the spellchecker flags as misspelled.</td><td>Dictionary tests</td></tr>
       </tbody>
     </table>
@@ -439,13 +439,14 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
     <div class="promise"><h3>Keys</h3><p>A pure decoder turns raw modifier events into press, release, chord, and cancel, using the right-hand device bit so Left Option never counts. The tap runs on its own thread and is rebuilt after sleep; a disabled tap re-reads the live key state.</p></div>
     <div class="promise"><h3>Timers</h3><p>Every watchdog is a deadline fixed at creation, not at first scheduling, so timeouts don't drift later under load.</p></div>
     <div class="promise"><h3>Literal step</h3><p>Tidy whitespace, capitalize, then dictionary correction: exact phrases take the term's casing; a one-edit near-miss is fixed only if the spell checker flags the word.</p></div>
-    <div class="promise"><h3>Rewrite and preview</h3><p>One guarded <code>&lt;cleaned&gt;</code> block with ratio and overlap checks, else the literal. Show preview: When words change (default), Always, or Never. The panel never takes focus; on a choice Speak re-activates the original app and waits up to 2 s for ⌥ to lift.</p></div>
+    <div class="promise"><h3>Rewrite and preview</h3><p>One guarded <code>&lt;cleaned&gt;</code> block with ratio and overlap checks (Concise may drop only fillers and lead-ins), else the literal. Show preview: When words change (default), Always, or Never. The panel never takes focus; on a choice Speak re-activates the original app and waits up to 2 s for ⌥ to lift.</p></div>
+    <div class="promise"><h3>Speed</h3><p>At key press in a rewrite mode, the model session is built and its instructions preloaded, so release leaves only the transcript to read. Guardrails for transforming the user's own text reply ~0.1 s sooner with the same output; the speech analyzer runs at user-initiated priority. Polished: 0.99 s → 0.58 s median. Starting the rewrite on the partial transcript at release was tried and removed (it never matched).</p></div>
     <div class="promise"><h3>Delivery rescue and undo</h3><p>A paste that hasn't finished in 3 s becomes a copy of the accepted text. Undo insert is offered for 30 s while the same app, field, and length still match, with focus read from the frontmost app.</p></div>
     <div class="promise"><h3>History and diagnostics</h3><p>Finished dictations go to a JSON-lines file (newest 50) when history is on. Release-to-result timings go to the log, and the last 20 go into Copy diagnostics with versions, permissions, and settings.</p></div>
   </div>
 </section>
 
-<footer><span>Speak · architecture v1 · as built 2026-10-16</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
+<footer><span>Speak · architecture v1 · as built 2026-10-18</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
 </div>
 
 <script>
