@@ -63,6 +63,8 @@ public enum Constants {
     public static let dictTermLength: ClosedRange<Int> = 2...64
     /// Maximum number of dictionary entries.
     public static let dictMaxEntries = 200
+    /// Maximum number of replacement pairs, separate from the terms.
+    public static let pairsMax = 100
     /// History cap when history is on.
     public static let historyMax = 50
     /// Silence fed to the recognizer after the mic closes, so the last word is

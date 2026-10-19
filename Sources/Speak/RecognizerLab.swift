@@ -47,7 +47,7 @@ struct RecognizerLab {
                         print("lab: \(voice) \(rate) \(index + 1) failed: \(error)")
                         continue
                     }
-                    let text = makeLiteral(raw, terms: Self.terms, spelling: spelling, language: "en")
+                    let text = makeLiteral(raw, terms: Self.terms, pairs: [], spelling: spelling, language: "en")
                     print("\(voice)\t\(rate)\t\(index + 1)\t\(text)")
                     fflush(stdout)
                 }

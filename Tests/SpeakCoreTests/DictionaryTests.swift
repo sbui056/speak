@@ -134,7 +134,7 @@ struct TermCorrectionTests {
     }
 
     @MainActor @Test func literalPipelineCleansThenCorrects() {
-        let out = makeLiteral("  iphone   sync with shiobhan ", terms: ["iPhone", "Siobhan"],
+        let out = makeLiteral("  iphone   sync with shiobhan ", terms: ["iPhone", "Siobhan"], pairs: [],
                               spelling: FakeSpellChecker(misspelled: ["shiobhan"]), language: "en_US")
         #expect(out == "iPhone sync with Siobhan")
     }

@@ -18,6 +18,8 @@ public final class SessionController {
     }
     /// Dictionary terms: spellings for correction, the transcriber, and the rewriter.
     @ObservationIgnored public var terms: [String] = []
+    /// Replacement pairs for Literal; their "write" sides also rescore the transcriber.
+    @ObservationIgnored public var pairs: [ReplacementPair] = []
     /// Language for the spell checker, as a locale identifier.
     @ObservationIgnored public var language = "en_US"
     /// Called when the preview opens or closes, for the panel that shows it.
@@ -180,7 +182,7 @@ public final class SessionController {
             })
         case .prepareLiteral(let id, let raw):
             // Local and quick (the spell checker is asked only about near misses).
-            send(.literalReady(id, makeLiteral(raw, terms: terms, spelling: spelling, language: language)))
+            send(.literalReady(id, makeLiteral(raw, terms: terms, pairs: pairs, spelling: spelling, language: language)))
         case .prewarmRewriter(let mode):
             let rewriter = self.rewriter
             let instructions = rewriteInstructions(mode, terms: terms)
@@ -282,7 +284,7 @@ public final class SessionController {
         guard let rt = runtime(id) else { return }
         let audio = self.audio
         let transcriber = self.transcriber
-        let terms = self.terms
+        let terms = self.terms + pairs.map(\.write)
         let input = self.input
         let onAudio: @Sendable (AudioEvent) -> Void = { [weak self] event in
             switch event {

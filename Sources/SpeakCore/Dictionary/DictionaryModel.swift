@@ -10,7 +10,7 @@ public final class DictionaryModel {
     public var showCorruptNotice: Bool
     /// The last save failed; the edit is kept in memory for this run.
     public private(set) var saveFailed = false
-    @ObservationIgnored public var onChange: (([String]) -> Void)?
+    @ObservationIgnored public var onChange: ((TermDictionary) -> Void)?
     @ObservationIgnored private let files: AppFiles
 
     public init(files: AppFiles) {
@@ -21,6 +21,7 @@ public final class DictionaryModel {
     }
 
     public var terms: [String] { dictionary.terms }
+    public var pairs: [ReplacementPair] { dictionary.pairs }
 
     public func add(_ raw: String) throws(TermError) {
         try dictionary.add(raw)
@@ -37,6 +38,21 @@ public final class DictionaryModel {
         changed()
     }
 
+    public func addPair(heard: String, write: String) throws(TermError) {
+        try dictionary.addPair(heard: heard, write: write)
+        changed()
+    }
+
+    public func replacePair(at index: Int, heard: String, write: String) throws(TermError) {
+        try dictionary.replacePair(at: index, heard: heard, write: write)
+        changed()
+    }
+
+    public func removePair(at index: Int) {
+        dictionary.removePair(at: index)
+        changed()
+    }
+
     private func changed() {
         do {
             try files.saveDictionary(dictionary)
@@ -44,6 +60,6 @@ public final class DictionaryModel {
         } catch {
             saveFailed = true
         }
-        onChange?(dictionary.terms)
+        onChange?(dictionary)
     }
 }

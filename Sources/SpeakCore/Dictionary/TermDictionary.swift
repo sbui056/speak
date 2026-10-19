@@ -8,6 +8,8 @@ public enum TermError: Error, Equatable, Sendable {
     case limit
     case angleBrackets
     case controlCharacters
+    case sameText
+    case pairLimit
 
     public var message: String {
         switch self {
@@ -17,21 +19,26 @@ public enum TermError: Error, Equatable, Sendable {
         case .limit: "Limit of \(Constants.dictMaxEntries) reached"
         case .angleBrackets: "Can't contain < or >"
         case .controlCharacters: "Can't contain tabs or line breaks"
+        case .sameText: "Heard and Write are the same"
+        case .pairLimit: "Limit of \(Constants.pairsMax) reached"
         }
     }
 }
 
 /// Names and terms the user wants spelled their way. Every stored term is
 /// trimmed, NFC-normalized, unique ignoring case, and free of `<` `>`, which
-/// keeps it safe to put in a rewrite prompt.
+/// keeps it safe to put in a rewrite prompt. Replacement pairs follow the same
+/// rules on both sides, with "heard" unique ignoring case.
 public struct TermDictionary: Equatable, Sendable {
     public private(set) var terms: [String] = []
+    public private(set) var pairs: [ReplacementPair] = []
 
     public init() {}
 
-    /// Builds from untrusted input (a file), keeping only terms that pass validation.
-    public init(validating raw: [String]) {
+    /// Builds from untrusted input (a file), keeping only entries that pass validation.
+    public init(validating raw: [String], pairs rawPairs: [ReplacementPair] = []) {
         for term in raw { try? add(term) }
+        for pair in rawPairs { try? addPair(heard: pair.heard, write: pair.write) }
     }
 
     private static func normalize(_ raw: String) -> String {
@@ -41,12 +48,11 @@ public struct TermDictionary: Equatable, Sendable {
     /// The normalized term, or why it can't be stored. `replacing` is the index
     /// being edited, which doesn't count as a duplicate of itself.
     public func validate(_ raw: String, replacing index: Int? = nil) -> Result<String, TermError> {
-        let term = Self.normalize(raw)
-        if term.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) {
-            return .failure(.controlCharacters)
+        let term: String
+        switch Self.check(raw) {
+        case .success(let checked): term = checked
+        case .failure(let error): return .failure(error)
         }
-        if term.contains("<") || term.contains(">") { return .failure(.angleBrackets) }
-        guard Constants.dictTermLength.contains(term.count) else { return .failure(.length) }
         let duplicate = terms.indices.contains { $0 != index && terms[$0].caseInsensitiveCompare(term) == .orderedSame }
         if duplicate { return .failure(.duplicate) }
         if index == nil, terms.count >= Constants.dictMaxEntries { return .failure(.limit) }
@@ -65,5 +71,49 @@ public struct TermDictionary: Equatable, Sendable {
     public mutating func remove(at index: Int) {
         guard terms.indices.contains(index) else { return }
         terms.remove(at: index)
+    }
+
+    /// The normalized pair, or why it can't be stored. `replacing` is the index
+    /// being edited, which doesn't count as a duplicate of itself.
+    public func validatePair(heard rawHeard: String, write rawWrite: String,
+                             replacing index: Int? = nil) -> Result<ReplacementPair, TermError> {
+        let heard: String, write: String
+        switch (Self.check(rawHeard), Self.check(rawWrite)) {
+        case (.failure(let error), _), (_, .failure(let error)): return .failure(error)
+        case (.success(let h), .success(let w)): (heard, write) = (h, w)
+        }
+        if heard.caseInsensitiveCompare(write) == .orderedSame { return .failure(.sameText) }
+        let duplicate = pairs.indices.contains {
+            $0 != index && pairs[$0].heard.caseInsensitiveCompare(heard) == .orderedSame
+        }
+        if duplicate { return .failure(.duplicate) }
+        if index == nil, pairs.count >= Constants.pairsMax { return .failure(.pairLimit) }
+        return .success(ReplacementPair(heard: heard, write: write))
+    }
+
+    public mutating func addPair(heard: String, write: String) throws(TermError) {
+        pairs.append(try validatePair(heard: heard, write: write).get())
+    }
+
+    public mutating func replacePair(at index: Int, heard: String, write: String) throws(TermError) {
+        guard pairs.indices.contains(index) else { return }
+        pairs[index] = try validatePair(heard: heard, write: write, replacing: index).get()
+    }
+
+    public mutating func removePair(at index: Int) {
+        guard pairs.indices.contains(index) else { return }
+        pairs.remove(at: index)
+    }
+
+    /// The rules every stored text follows: normalized, no control characters
+    /// or angle brackets, within C-DICT's length.
+    private static func check(_ raw: String) -> Result<String, TermError> {
+        let text = normalize(raw)
+        if text.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) {
+            return .failure(.controlCharacters)
+        }
+        if text.contains("<") || text.contains(">") { return .failure(.angleBrackets) }
+        guard Constants.dictTermLength.contains(text.count) else { return .failure(.length) }
+        return .success(text)
     }
 }

@@ -7,10 +7,12 @@ public protocol SpellChecker: Sendable {
     @MainActor func isMisspelled(_ word: String, language: String) -> Bool
 }
 
-/// Literal mode's full pipeline: tidy the text, then apply the user's spellings.
+/// Literal mode's full pipeline: tidy the text, apply the user's replacements,
+/// then their spellings.
 @MainActor
-public func makeLiteral(_ raw: String, terms: [String], spelling: any SpellChecker, language: String) -> String {
-    correctTerms(cleanLiteral(raw), terms: terms) { spelling.isMisspelled($0, language: language) }
+public func makeLiteral(_ raw: String, terms: [String], pairs: [ReplacementPair], spelling: any SpellChecker,
+                        language: String) -> String {
+    correctTerms(applyPairs(cleanLiteral(raw), pairs: pairs), terms: terms) { spelling.isMisspelled($0, language: language) }
 }
 
 /// Rewrites dictionary terms to the user's exact spelling.
@@ -66,15 +68,21 @@ private let patternCache = Mutex<(terms: [String], byLength: [String], regex: NS
 private func termPattern(_ terms: [String]) -> (byLength: [String], regex: NSRegularExpression?) {
     if let cached = patternCache.withLock({ $0 }), cached.terms == terms { return (cached.byLength, cached.regex) }
     let byLength = terms.sorted { $0.count > $1.count }
-    let alternatives = byLength.map { term in
-        term.split(whereSeparator: \.isWhitespace)
+    let regex = phraseRegex(byLength)
+    patternCache.withLock { $0 = (terms, byLength, regex) }
+    return (byLength, regex)
+}
+
+/// One case-insensitive pattern matching any of `phrases` as whole words
+/// (any whitespace between their words), with capture group n + 1 for phrase n.
+func phraseRegex(_ phrases: [String]) -> NSRegularExpression? {
+    let alternatives = phrases.map { phrase in
+        phrase.split(whereSeparator: \.isWhitespace)
             .map { NSRegularExpression.escapedPattern(for: String($0)) }
             .joined(separator: "\\s+")
     }
     let pattern = "(?<![\\p{L}\\p{N}_])(?:" + alternatives.map { "(\($0))" }.joined(separator: "|") + ")(?![\\p{L}\\p{N}_])"
-    let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-    patternCache.withLock { $0 = (terms, byLength, regex) }
-    return (byLength, regex)
+    return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
 }
 
 /// True when the words differ (ignoring case) by exactly one insertion,

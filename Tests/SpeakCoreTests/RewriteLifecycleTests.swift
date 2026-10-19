@@ -189,6 +189,17 @@ struct RewriteLifecycleTests {
         #expect(h.controller.preview?.literal == "Ask Siobhan about Kubernetes today please")
     }
 
+    @Test func pairsReachLiteralAndRescoring() async {
+        let h = Harness()
+        h.transcriber.configure { $0.text = "open a pool request for kubernetes" }
+        h.controller.terms = ["Kubernetes"]
+        h.controller.pairs = [ReplacementPair(heard: "pool request", write: "pull request")]
+        await h.hold(for: .milliseconds(1000))
+        #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
+        #expect(h.pasteboard.text == "Open a pull request for Kubernetes")
+        #expect(h.transcriber.terms == [["Kubernetes", "pull request"]])
+    }
+
     @Test func stagesAreReportedInOrderThenTheHandoffHasItsOwn() async {
         let h = polished()
         var stages: [SessionStage] = []

@@ -153,7 +153,11 @@ final class AppModel {
         controller.hotkeyChoice = hotkey
         controller.language = savedLocale.identifier
         controller.terms = dictionary.terms
-        dictionary.onChange = { [controller] terms in controller.terms = terms }
+        controller.pairs = dictionary.pairs
+        dictionary.onChange = { [controller] dictionary in
+            controller.terms = dictionary.terms
+            controller.pairs = dictionary.pairs
+        }
     }
 
     /// Starts everything. Returns whether Settings should open (a permission is missing).

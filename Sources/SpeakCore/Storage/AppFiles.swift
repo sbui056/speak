@@ -27,7 +27,7 @@ public struct AppFiles: Sendable {
         guard let data = try? Data(contentsOf: url) else { return Loaded(value: TermDictionary(), wasCorrupt: false) }
         do {
             let file = try JSONDecoder().decode(DictionaryFile.self, from: data)
-            return Loaded(value: TermDictionary(validating: file.terms), wasCorrupt: false)
+            return Loaded(value: TermDictionary(validating: file.terms, pairs: file.pairs ?? []), wasCorrupt: false)
         } catch {
             moveAside(url)
             return Loaded(value: TermDictionary(), wasCorrupt: true)
@@ -35,7 +35,7 @@ public struct AppFiles: Sendable {
     }
 
     public func saveDictionary(_ dictionary: TermDictionary) throws {
-        let data = try JSONEncoder().encode(DictionaryFile(version: 1, terms: dictionary.terms))
+        let data = try JSONEncoder().encode(DictionaryFile(version: 2, terms: dictionary.terms, pairs: dictionary.pairs))
         try write(data, to: Self.dictionaryFile)
     }
 
@@ -78,9 +78,11 @@ public struct AppFiles: Sendable {
     private static let dictionaryFile = "dictionary.json"
     private static let historyFile = "history.jsonl"
 
+    /// Version 2 added `pairs`; version 1 files have none.
     private struct DictionaryFile: Codable {
         var version: Int
         var terms: [String]
+        var pairs: [ReplacementPair]?
     }
 
     private func write(_ data: Data, to name: String) throws {
