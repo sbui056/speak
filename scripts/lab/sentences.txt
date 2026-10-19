@@ -1,0 +1,12 @@
+# Recognizer lab sentences (scripts/lab-recognizer.sh). Targets marked [[...]];
+# CONTROL: lines hold words that sound like the targets and must stay as spoken.
+Did you get a chance to look at the [[pull request]] I sent over [[yesterday]]?
+So the main thing I [[learned]] this week is that the [[cache]] wasn't the problem at all. It was the [[retry logic]] hammering the [[server]] whenever [[a request timed out]].
+The [[meeting notes]] are in the [[shared folder]], and I highlighted the [[action items]] that are [[on our team]].
+Okay, [[remind me]] to call the [[landlord]] about the [[heater]] [[tomorrow]].
+I [[pushed the fix]] [[to main]], [[CI]] should be [[green]] in a few minutes.
+Can we do [[Tuesday]] instead of [[Monday]]?
+If we add a [[composite index]] on [[user ID]] and [[created at]], it should drop to a few [[milliseconds]].
+CONTROL: I [[paid]] in [[cash]] at the [[pool]].
+CONTROL: [[I'll]] [[really try]] to keep the [[kitchen]] [[clean]].
+CONTROL: [[The man]] said [[Thursday]] [[works for him]].

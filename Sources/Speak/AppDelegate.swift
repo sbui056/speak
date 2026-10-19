@@ -15,6 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await corpus.run(); exit(0) }
             return
         }
+        if let lab = RecognizerLab(environment: ProcessInfo.processInfo.environment) {
+            Task { await lab.run(); exit(0) }
+            return
+        }
         #endif
         MainMenu.install()
         let settings = self.settings
