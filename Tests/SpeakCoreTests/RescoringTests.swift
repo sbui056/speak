@@ -36,6 +36,20 @@ struct RescoringTests {
         #expect(rescore([seg("push to Main", alts: ["push to main"])], terms: ["main"]) == "push to Main")
     }
 
+    @Test func alternativeThatLosesATermTheTopHasIsRejected() {
+        #expect(rescore([seg("the cache app", alts: ["the cash app"])], terms: ["cache", "cash app"]) == "the cache app")
+    }
+
+    @Test func oneCharacterTermsNeverRescore() {
+        // "C++" compares as "c": any lone letter would match it.
+        #expect(rescore([seg("the plan see", alts: ["the plan C"])], terms: ["C++"]) == "the plan see")
+    }
+
+    @Test func chosenAlternativeKeepsTheTopReadingsOuterSpacing() {
+        let segments = [seg("I pushed it."), seg(" The cash is cold.", alts: ["The cache is cold. "])]
+        #expect(rescore(segments, terms: ["cache"]) == "I pushed it. The cache is cold.")
+    }
+
     @Test func firstPassingAlternativeInRankOrderWins() {
         let segment = seg("the cash is cold", alts: ["the cash is gold", "the Cache is cold", "the cache is old"])
         #expect(rescore([segment], terms: ["cache"]) == "the Cache is cold")

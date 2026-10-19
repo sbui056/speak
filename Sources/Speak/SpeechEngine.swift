@@ -54,7 +54,8 @@ final class SpeechAnalyzerTranscriber: Transcriber {
             for try await result in module.results {
                 // Converted here, off the main actor.
                 let text = String(result.text.characters)
-                let alternatives = result.isFinal ? result.alternatives.dropFirst().map { String($0.characters) } : []
+                // The first alternative is normally the top reading itself.
+                let alternatives = result.isFinal ? result.alternatives.map { String($0.characters) }.filter { $0 != text } : []
                 onEvent(.partial(transcript.add(text, alternatives: alternatives, isFinal: result.isFinal)))
             }
         }
