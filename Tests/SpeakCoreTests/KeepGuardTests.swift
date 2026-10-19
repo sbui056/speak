@@ -44,8 +44,9 @@ struct KeepGuardTests {
         ("CI should be clean in a few minutes.", "CI should be green in a few minutes."),
         ("Okay, remind me it's called the landlord tomorrow.", "Remind me to call the landlord tomorrow."),
     ])
-    func soundAlikeFixesPass(_ literal: String, _ cleaned: String) {
-        #expect(check(literal, cleaned) == nil)
+    func soundAlikeSwapsAreRejected(_ literal: String, _ cleaned: String) {
+        // User, 2026-10-18: Polished leaves mishearings to Literal, so any sound-alike swap is unrequested.
+        #expect(check(literal, cleaned) == .soundAlike)
     }
 
     @Test(arguments: [
@@ -67,6 +68,7 @@ struct KeepGuardTests {
     @Test func inflectedTermStillCountsAsKept() {
         #expect(check("the script deploy to staging every night", "The script deploys to staging every night.",
                       terms: ["deploy", "staging"]) == nil)
+        #expect(check("Pages is slow today.", "Page is slow today.", terms: ["Pages"]) == .lostProtected)
         #expect(check("open a pull request", "Open pull requests.", terms: ["pull request"]) == nil)
     }
 
@@ -120,11 +122,11 @@ struct KeepGuardTests {
         #expect(check("Send the file.", "Send the file to legal.") == .unrelated)
     }
 
-    @Test func tooManyFixesAreRejected() {
-        // Three sound-alike fixes in ten words; the cap is max(2, 10 / 10).
+    @Test func evenOneSoundAlikeSwapIsRejected() {
         #expect(check("The cash and the pool and the man are fine", "The cache and the pull and the main are fine")
-            == .tooManyFixes)
-        #expect(check("The cash and the pool are fine today", "The cache and the pull are fine today") == nil)
+            == .soundAlike)
+        #expect(check("The cash is fine today and every day after", "The cache is fine today and every day after")
+            == .soundAlike)
     }
 
     // Review of the first keep guard: meaning changes that passed.
@@ -145,6 +147,10 @@ struct KeepGuardTests {
         ("The first item is ready.", "The second item is ready."),
         ("Lunch at noon.", "Lunch at 1 PM."),
         ("Ask Dr. Smith about it.", "Ask Dr. Smyth about it."),
+        ("It takes two to four days.", "It takes 24 days."),
+        ("Invite two or three people.", "Invite 23 people."),
+        ("for the second time", "For two times."),
+        ("the first two weeks are busy", "The 12 weeks are busy."),
     ])
     func meaningChangesAreRejected(_ literal: String, _ cleaned: String) {
         #expect(check(literal, cleaned) != nil)
@@ -166,6 +172,8 @@ struct KeepGuardTests {
         ("the twenty first of June works", "The 21st of June works."),
         ("let's do a one on one tomorrow", "Let's do a 1:1 tomorrow."),
         ("lunch at noon on Friday", "Lunch at 12 PM on Friday."),
+        ("it takes two to four days", "It takes 2-4 days."),
+        ("we need two thousand five hundred chairs", "We need 2,500 chairs."),
         ("Ask Dr. Smith about it.", "Ask Dr. Smith about it"),
     ])
     func everydayCleanupsPass(_ literal: String, _ cleaned: String) {
@@ -190,9 +198,9 @@ struct RewriteKeepGuardTests {
                                 mode: .polished, terms: []) == nil)
     }
 
-    @Test func polishedReplyThatFixesASoundAlikePasses() {
-        #expect(validateRewrite("<cleaned>The cache wasn't the problem.</cleaned>", literal: "the cash wasn't the problem",
-                                mode: .polished, terms: []) == "The cache wasn't the problem.")
+    @Test func polishedReplyThatSwapsASoundAlikeFallsBack() {
+        #expect(checkRewrite("<cleaned>The cache wasn't the problem.</cleaned>", literal: "the cash wasn't the problem",
+                             mode: .polished, terms: []) == .failure(.keep(.soundAlike)))
     }
 
     @Test func rejectionsHaveLoggableNames() {

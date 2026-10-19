@@ -26,8 +26,9 @@ public func makeLiteral(_ raw: String, terms: [String], pairs: [ReplacementPair]
 ///   the near-miss pass.
 /// - A word one edit away from a single-word term of 5+ characters is replaced
 ///   only if `isMisspelled` says it isn't a real word.
-/// - `shielding` (what replacement pairs wrote) is never changed and never
-///   near-miss corrected.
+/// - `shielding` (what replacement pairs wrote) is never near-miss corrected
+///   and keeps its casing, except where it is also a term: then the term's
+///   casing wins ("github" written by a pair becomes the term "GitHub").
 public func correctTerms(_ text: String, terms: [String], shielding: [String] = [],
                          isMisspelled: (String) -> Bool) -> String {
     guard !terms.isEmpty, !text.isEmpty else { return text }

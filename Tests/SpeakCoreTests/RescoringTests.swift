@@ -76,12 +76,9 @@ struct RescoringTests {
         #expect(rescore([segment], terms: ["cache"]) == "the Cache is cold")
     }
 
-    @Test func aTermMayBeSplitIntoWords() {
-        // "Node.js" compares as "nodejs"; the recognizer writes it "node JS".
-        #expect(rescore([seg("we use node chess here", alts: ["we use node JS here"])], terms: ["Node.js"])
-            == "we use node JS here")
-        #expect(rescore([seg("we use node JS here", alts: ["we use Node chess here"])], terms: ["Node.js"])
-            == "we use node JS here")
+    @Test func wordsThatOnlyJoinIntoATermAreNotTheTerm() {
+        // "red is" joins to "redis" but isn't Redis; a replacement pair handles real splits.
+        #expect(rescore([seg("the read is done", alts: ["the red is done"])], terms: ["Redis"]) == "the read is done")
     }
 
     @Test func termMatchIsWholeWord() {

@@ -11,16 +11,18 @@ public enum KeepFailure: String, Equatable, Sendable {
     case negation
     /// A word was replaced by one that neither sounds like it nor is a grammar fix.
     case unrelated
-    /// More sound-alike fixes than max(2, words / 10).
-    case tooManyFixes
+    /// A word replaced by one that sounds like it: a "fix" Polished wasn't asked
+    /// for (mishearings are Literal's job, user 2026-10-18).
+    case soundAlike
 }
 
-/// Lets Polished fix mishearings and grammar but nothing else (invariant 7).
-/// The reply is aligned with the literal word by word; protected words must
-/// survive, and each changed stretch must be a filler or grammar change, an
-/// inflection, a join or split ("follow up" → "follow-up"), or a word that
-/// sounds like the one replaced. Outside English only the language-neutral
-/// protections apply (digits, terms, acronyms, unknown words).
+/// Lets Polished fix grammar but nothing else (invariant 7). The reply is
+/// aligned with the literal word by word; protected words must survive, and
+/// each changed stretch must be a filler or grammar change, an inflection, or
+/// a join or split ("follow up" → "follow-up"). A word swapped for a
+/// sound-alike is reported apart (`.soundAlike`): Polished isn't asked to fix
+/// mishearings. Outside English only the language-neutral protections apply
+/// (digits, terms, acronyms, unknown words).
 /// `unknownWords` are the literal's words the spell checker doesn't know,
 /// lowercased with apostrophes removed.
 func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: Set<String>,
@@ -63,7 +65,7 @@ func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: 
         case .unrelated: return .unrelated
         }
     }
-    return fixes > max(2, before.count / 10) ? .tooManyFixes : nil
+    return fixes > 0 ? .soundAlike : nil
 }
 
 /// The literal's distinct words the spell checker doesn't know, as the keep
@@ -87,19 +89,28 @@ extension SpellChecker {
 private struct KeepToken {
     /// As written, without surrounding punctuation.
     let raw: String
-    /// Lowercased letters and digits ("Don't" → "dont"); a number run is one key ("#230").
+    /// Lowercased letters and digits ("Don't" → "dont"). A number run is one key:
+    /// its numbers apart, ordinals marked ("two to four" → "#2.4", "21st" → "#21o").
     let key: String
     /// `key` without a possessive ("Sarah's" → "sarah").
     let base: String
     let startsSentence: Bool
     let isNumber: Bool
-    /// Punctuation between this token and the one before ("," ".").
-    let breaksFromPrevious: Bool
+    /// What separates this token from the one before (", " or " ").
+    let gap: String
+
+    /// Punctuation between this token and the one before.
+    var breaksFromPrevious: Bool { gap.contains(where: { ".,;!?\n".contains($0) }) }
+    var isOrdinal: Bool { key.hasSuffix("o") && isNumber || ordinalValues[key] != nil }
+
+    func with(key: String) -> KeepToken {
+        KeepToken(raw: raw, key: key, base: key, startsSentence: startsSentence, isNumber: true, gap: gap)
+    }
 }
 
 /// Words and digit runs. Hyphenated words split ("follow-up" → "follow", "up");
-/// in English, spoken numbers and digits become one token per run of numbers,
-/// keyed by their digits ("two thirty" and "2:30" both "#230").
+/// in English, spoken numbers and digits become one token per run of numbers
+/// ("two thirty" and "2:30" both "#2.30").
 private func keepTokens(_ text: String, english: Bool) -> [KeepToken] {
     let ns = text as NSString
     var tokens: [KeepToken] = []
@@ -111,35 +122,38 @@ private func keepTokens(_ text: String, english: Bool) -> [KeepToken] {
         let startsSentence = tokens.isEmpty || gap.contains(where: { ".!?\n".contains($0) })
         let key = String(raw.lowercased().filter { $0.isLetter || $0.isNumber })
         guard !key.isEmpty, key != "oclock" else { continue }
-        // "1st", "22nd": the suffix belongs to the number.
-        if gap.isEmpty, tokens.last?.isNumber == true, ["st", "nd", "rd", "th"].contains(key) { continue }
-        let breaks = gap.contains(where: { ".,;!?\n".contains($0) })
+        // "1st", "22nd": the suffix makes the number an ordinal.
+        if gap.isEmpty, let last = tokens.last, last.isNumber, ["st", "nd", "rd", "th"].contains(key) {
+            tokens[tokens.count - 1] = last.with(key: last.key + "o")
+            continue
+        }
         // "noon" is written "12 PM" just as often.
         if english, let time = ["noon": "pm", "midnight": "am"][key] {
             tokens.append(KeepToken(raw: raw, key: "12", base: "12", startsSentence: startsSentence, isNumber: true,
-                                    breaksFromPrevious: breaks))
-            tokens.append(KeepToken(raw: raw, key: time, base: time, startsSentence: false, isNumber: false,
-                                    breaksFromPrevious: false))
+                                    gap: gap))
+            tokens.append(KeepToken(raw: raw, key: time, base: time, startsSentence: false, isNumber: false, gap: " "))
             continue
         }
         var base = raw.lowercased()
         for suffix in ["'s", "’s"] where base.hasSuffix(suffix) { base = String(base.dropLast(2)) }
         tokens.append(KeepToken(raw: raw, key: key, base: String(base.filter { $0.isLetter || $0.isNumber }),
-                                startsSentence: startsSentence, isNumber: key.allSatisfy(\.isNumber),
-                                breaksFromPrevious: breaks))
+                                startsSentence: startsSentence, isNumber: key.allSatisfy(\.isNumber), gap: gap))
     }
     return mergeNumbers(tokens, spoken: english)
 }
 
 private let tokenPattern = try! NSRegularExpression(pattern: "[\\p{L}\\p{M}]+(?:['’][\\p{L}\\p{M}]+)*|\\p{N}+")
 
+/// Joins each run of numbers into one token. A run ends at punctuation next to
+/// a spoken number and after an ordinal ("the first two weeks" stays two numbers).
 private func mergeNumbers(_ tokens: [KeepToken], spoken: Bool) -> [KeepToken] {
     var out: [KeepToken] = []
     var i = 0
     while i < tokens.count {
         var j = i
         while j < tokens.count, isNumberToken(tokens, j, spoken: spoken),
-              j == i || !tokens[j].breaksFromPrevious || (tokens[j - 1].isNumber && tokens[j].isNumber) {
+              j == i || ((!tokens[j].breaksFromPrevious || (tokens[j - 1].isNumber && tokens[j].isNumber))
+                         && !tokens[j - 1].isOrdinal) {
             j += 1
         }
         if j == i {
@@ -149,10 +163,9 @@ private func mergeNumbers(_ tokens: [KeepToken], spoken: Bool) -> [KeepToken] {
         }
         // ":00" after an hour is how "four o'clock" is written.
         let run = tokens[i..<j].enumerated().filter { $0.offset == 0 || $0.element.key != "00" }.map(\.element)
-        let digits = "#" + spokenDigits(run.map(\.key))
-        out.append(KeepToken(raw: tokens[i..<j].map(\.raw).joined(separator: " "), key: digits, base: digits,
-                             startsSentence: tokens[i].startsSentence, isNumber: true,
-                             breaksFromPrevious: tokens[i].breaksFromPrevious))
+        let key = "#" + numberPieces(run).joined(separator: ".")
+        out.append(KeepToken(raw: tokens[i..<j].map(\.raw).joined(separator: " "), key: key, base: key,
+                             startsSentence: tokens[i].startsSentence, isNumber: true, gap: tokens[i].gap))
         i = j
     }
     return out
@@ -168,7 +181,7 @@ private func isNumberToken(_ tokens: [KeepToken], _ i: Int, spoken: Bool) -> Boo
         return i > 0 && !tokens[i].breaksFromPrevious
             && (tokens[i - 1].isNumber || numberValues[tokens[i - 1].key] != nil)
     }
-    return numberValues[key] != nil
+    return numberValues[key] != nil || ordinalValues[key] != nil
 }
 
 private let numberValues: [String: Int] = {
@@ -179,7 +192,12 @@ private let numberValues: [String: Int] = {
     for (n, word) in ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"].enumerated() {
         values[word] = (n + 2) * 10
     }
-    // Ordinals, so "first" and "1st" are the same number.
+    return values
+}()
+
+/// "first" is "1st", never "1" or "one".
+private let ordinalValues: [String: Int] = {
+    var values: [String: Int] = [:]
     let ordinals = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
                     "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
                     "eighteenth", "nineteenth"]
@@ -188,24 +206,40 @@ private let numberValues: [String: Int] = {
     return values
 }()
 
-/// The digits a run of numbers is written with: "twenty five" → "25",
-/// "five five five oh one" → "55501", "two thirty" → "230", "one hundred five" → "105",
-/// "two thousand five hundred" → "2500".
-private func spokenDigits(_ keys: [String]) -> String {
-    var out = "", total = 0, group = 0, active = false, last = 0
-    func flush() {
-        if active { out += String(total + group) }
+/// The separate numbers of a run, as written in digits (ordinals end in "o"):
+/// "twenty five" → ["25"], "two to four" is two runs, "2-4" → ["2", "4"],
+/// "two thirty" → ["2", "30"], "two thousand five hundred" and "2,500" → ["2500"],
+/// "twenty first" and "21st" → ["21o"].
+private func numberPieces(_ run: [KeepToken]) -> [String] {
+    var pieces: [String] = [], total = 0, group = 0, active = false, last = 0
+    func flush(_ suffix: String = "") {
+        if active { pieces.append(String(total + group) + suffix) }
         (total, group, active) = (0, 0, false)
     }
-    for key in keys {
-        guard let value = numberValues[key] else {
+    for token in run {
+        let key = token.key
+        guard let value = numberValues[key] ?? ordinalValues[key] else {
             flush()
-            out += key // written digits, leading zeros kept
+            // Written digits; "2,500" is one number (a comma before three digits).
+            if token.gap == ",", key.count == 3, key.allSatisfy(\.isNumber), let previous = pieces.last,
+               previous.allSatisfy(\.isNumber) {
+                pieces[pieces.count - 1] = previous + key
+            } else {
+                pieces.append(key)
+            }
             last = 0
             continue
         }
         // "twenty" + "five" and "hundred" + "five"/"fifteen"/"thirty" add up; anything else starts a new number.
         let adds = (value < 10 && last >= 20 && last % 10 == 0) || (value < 100 && last >= 100)
+        if numberValues[key] == nil {
+            // An ordinal ends its number.
+            if active && adds { group += value } else { flush(); group = value }
+            active = true
+            flush("o")
+            last = 0
+            continue
+        }
         if value == 1000 {
             total += max(group, 1) * 1000
             group = 0
@@ -221,27 +255,27 @@ private func spokenDigits(_ keys: [String]) -> String {
         last = value
     }
     flush()
-    return out
+    return pieces
 }
 
 // MARK: Protected words
 
 private func numberDigits(_ tokens: [KeepToken]) -> String {
-    tokens.filter(\.isNumber).map { String($0.key.dropFirst()) }.joined()
+    tokens.filter(\.isNumber).map { $0.key.filter(\.isNumber) }.joined()
 }
 
 private let weekdays: Set<String> = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 private let months: Set<String> = ["january", "february", "april", "june", "july", "august", "september",
                                    "october", "november", "december"]
 
-/// Days, months, noon/midnight, and am/pm after a number. "May" and "March"
+/// Days, months, and am/pm after a number (noon and midnight arrive as "12 pm"/"12 am"). "May" and "March"
 /// count only capitalized, since they're also ordinary words.
 private func calendarWords(_ tokens: [KeepToken]) -> Set<String> {
     var found: Set<String> = []
     for (i, token) in tokens.enumerated() {
         let key = token.key
         let capital = token.raw.first?.isUppercase == true
-        if weekdays.contains(key) || months.contains(key) || key == "noon" || key == "midnight"
+        if weekdays.contains(key) || months.contains(key)
             || (capital && (key == "may" || key == "march"))
             || ((key == "am" || key == "pm") && i > 0 && tokens[i - 1].isNumber) {
             found.insert(key)
@@ -279,13 +313,13 @@ private func negations(_ tokens: [KeepToken]) -> Int {
 }
 
 /// `phrase` in `words`, its last word possibly inflected ("deploy" → "deploys",
-/// "pull request" → "pull requests").
+/// "pull request" → "pull requests"), never shortened ("Pages" → "Page").
 private func containsAllowingInflection(_ words: [String], _ phrase: [String]) -> Bool {
     guard let last = phrase.last, words.count >= phrase.count else { return false }
     return (0...(words.count - phrase.count)).contains { start in
         let window = words[start..<(start + phrase.count)]
         return window.dropLast().elementsEqual(phrase.dropLast())
-            && (window.last == last || isInflection(window.last ?? "", last))
+            && (window.last == last || (window.last.map { $0.count > last.count && isInflection($0, last) } ?? false))
     }
 }
 
@@ -331,7 +365,9 @@ private func classify(_ deleted: [String], _ inserted: [String], keptWords: Set<
         || heardFunction.map(agreementGroup).sorted() == wroteFunction.map(agreementGroup).sorted()
     let mayFix = !deleted.contains(where: capitalized.contains) && !isAntonymSwap(deleted, inserted)
     // The same digits written another way ("one on one" → "1:1"); the number check has the values.
-    let digits = { (words: [String]) in words.allSatisfy { $0.hasPrefix("#") } ? words.map { $0.dropFirst() }.joined() : nil }
+    let digits = { (words: [String]) in
+        words.allSatisfy { $0.hasPrefix("#") } ? words.map { $0.dropFirst() }.joined(separator: ".") : nil
+    }
     if !heard.isEmpty, let h = digits(heard), h == digits(wrote) { return .grammar }
 
     if functionsAgree {
