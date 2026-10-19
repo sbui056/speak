@@ -35,6 +35,8 @@ final class EngineAudioSource: AudioSource, @unchecked Sendable {
             Log.audio.error("no usable input format")
             throw AudioFailure.busy
         }
+        // A multichannel mic is mixed down instead of feeding only its first channel.
+        converter.downmix = true
         let (stream, continuation) = AsyncStream<AudioFrames>.makeStream(bufferingPolicy: .bufferingNewest(512))
         let tap = TapState(converter: converter, output: output, continuation: continuation)
         installConvertingTap(on: input, format: native, state: tap)
@@ -77,7 +79,9 @@ final class EngineAudioSource: AudioSource, @unchecked Sendable {
         }
         guard let current else { return }
         Self.tearDown(current)
-        Log.audio.info("mic closed buffers=\(current.tap.yielded.load(ordering: .relaxed), privacy: .public) dropped=\(current.tap.dropped.load(ordering: .relaxed), privacy: .public)")
+        let tap = current.tap
+        let capturedMs = Int((Double(tap.capturedFrames.load(ordering: .relaxed)) / tap.output.sampleRate * 1000).rounded())
+        Log.audio.notice("mic closed buffers=\(tap.yielded.load(ordering: .relaxed), privacy: .public) dropped=\(tap.dropped.load(ordering: .relaxed), privacy: .public) tap_frames=\(tap.tapFrames.load(ordering: .relaxed), privacy: .public) captured_ms=\(capturedMs, privacy: .public)")
     }
 
     private static func tearDown(_ s: Session) {
@@ -85,6 +89,8 @@ final class EngineAudioSource: AudioSource, @unchecked Sendable {
         NotificationCenter.default.removeObserver(s.observer)
         s.engine.stop()
         s.engine.inputNode.removeTap(onBus: 0)
+        // The tap no longer runs: hand over what the converter still holds.
+        drainConverter(s.tap)
         s.tap.continuation.finish()
     }
 }
@@ -99,6 +105,10 @@ private final class TapState: Sendable {
     let continuation: AsyncStream<AudioFrames>.Continuation
     let yielded = Atomic<Int>(0)
     let dropped = Atomic<Int>(0)
+    /// Converted frames handed to the transcriber, for the captured-ms log.
+    let capturedFrames = Atomic<Int>(0)
+    /// Size of the last buffer the tap delivered (the engine may round the requested size up).
+    let tapFrames = Atomic<Int>(0)
     private let rmsBits = Atomic<UInt32>(0)
     private let peakBits = Atomic<UInt64>((-Double.infinity).bitPattern)
 
@@ -111,6 +121,17 @@ private final class TapState: Sendable {
     var rms: Float { Float(bitPattern: rmsBits.load(ordering: .relaxed)) }
     var peakDBFS: Double { Double(bitPattern: peakBits.load(ordering: .relaxed)) }
 
+    func send(_ converted: AVAudioPCMBuffer) {
+        let frames = Int(converted.frameLength)
+        // Handed off and never referenced again here.
+        if case .dropped = continuation.yield(AudioFrames(AnalyzerInputBox(converted))) {
+            dropped.add(1, ordering: .relaxed)
+        } else {
+            yielded.add(1, ordering: .relaxed)
+            capturedFrames.add(frames, ordering: .relaxed)
+        }
+    }
+
     func record(rms: Float, peak: Float) {
         rmsBits.store(rms.bitPattern, ordering: .relaxed)
         let dB = peak > 0 ? 20 * log10(Double(peak)) : -.infinity
@@ -121,8 +142,10 @@ private final class TapState: Sendable {
 /// Must stay nonisolated: a closure formed inside @MainActor code inherits that
 /// isolation, and Swift traps when the real-time audio thread calls it.
 private func installConvertingTap(on input: AVAudioInputNode, format native: AVAudioFormat, state: TapState) {
-    input.installTap(onBus: 0, bufferSize: 2048, format: native) { tapBuffer, _ in
+    // Small batches, so less audio is in flight when the engine stops.
+    input.installTap(onBus: 0, bufferSize: 1024, format: native) { tapBuffer, _ in
         nonisolated(unsafe) let buffer = tapBuffer
+        state.tapFrames.store(Int(buffer.frameLength), ordering: .relaxed)
         measure(buffer, into: state)
         let ratio = state.output.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 16
@@ -136,13 +159,21 @@ private func installConvertingTap(on input: AVAudioInputNode, format native: AVA
             return buffer
         }
         guard error == nil, converted.frameLength > 0 else { return }
-        // Handed off and never referenced again here.
-        if case .dropped = state.continuation.yield(AudioFrames(AnalyzerInputBox(converted))) {
-            state.dropped.add(1, ordering: .relaxed)
-        } else {
-            state.yielded.add(1, ordering: .relaxed)
-        }
+        state.send(converted)
     }
+}
+
+/// Flushes the samples the sample-rate converter keeps back for its filter.
+/// Only after the tap is removed, so the converter is never used from two threads.
+private func drainConverter(_ state: TapState) {
+    guard let converted = AVAudioPCMBuffer(pcmFormat: state.output, frameCapacity: 4096) else { return }
+    var error: NSError?
+    state.converter.convert(to: converted, error: &error) { _, status in
+        status.pointee = .endOfStream
+        return nil
+    }
+    guard error == nil, converted.frameLength > 0 else { return }
+    state.send(converted)
 }
 
 /// Peak and RMS of the first channel, for the silence check and the HUD meter.

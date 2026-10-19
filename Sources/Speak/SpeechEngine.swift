@@ -46,12 +46,7 @@ final class SpeechAnalyzerTranscriber: Transcriber {
         Log.stt.info("analyzer prepared in \(ContinuousClock.now - started, privacy: .public)")
 
         let transcript = Transcript()
-        let sawAudio = Atomic<Bool>(false)
-        let input = frames.compactMap { @Sendable frames -> AnalyzerInput? in
-            guard let box = frames.payload as? AnalyzerInputBox else { return nil }
-            if !sawAudio.exchange(true, ordering: .relaxed) { onEvent(.active) }
-            return AnalyzerInput(buffer: box.buffer)
-        }
+        let (input, feeder) = analyzerInput(frames, format: format, onEvent: onEvent)
         let results = Task {
             for try await result in module.results {
                 // Converted here, off the main actor.
@@ -62,22 +57,25 @@ final class SpeechAnalyzerTranscriber: Transcriber {
         do {
             try await analyzer.start(inputSequence: input)
         } catch {
+            feeder.cancel()
             results.cancel()
             await analyzer.cancelAndFinishNow()
             throw error
         }
-        return AnalyzerSession(analyzer: analyzer, results: results, transcript: transcript)
+        return AnalyzerSession(analyzer: analyzer, results: results, feeder: feeder, transcript: transcript)
     }
 }
 
 private final class AnalyzerSession: TranscriberSession {
     private let analyzer: SpeechAnalyzer
     private let results: Task<Void, any Error>
+    private let feeder: Task<Void, Never>
     private let transcript: Transcript
 
-    init(analyzer: SpeechAnalyzer, results: Task<Void, any Error>, transcript: Transcript) {
+    init(analyzer: SpeechAnalyzer, results: Task<Void, any Error>, feeder: Task<Void, Never>, transcript: Transcript) {
         self.analyzer = analyzer
         self.results = results
+        self.feeder = feeder
         self.transcript = transcript
     }
 
@@ -89,9 +87,42 @@ private final class AnalyzerSession: TranscriberSession {
     }
 
     func cancel() async {
+        feeder.cancel()
         await analyzer.cancelAndFinishNow()
         results.cancel()
     }
+}
+
+/// The mic audio for the analyzer, then C-TAILPAD of generated silence once the
+/// mic closes, so a word cut off at release still gets finished. Must stay
+/// nonisolated: the task it starts runs off the main actor.
+private func analyzerInput(_ frames: AsyncStream<AudioFrames>, format: AVAudioFormat?,
+                           onEvent: @escaping @Sendable (TranscriberEvent) -> Void)
+    -> (AsyncStream<AnalyzerInput>, Task<Void, Never>) {
+    let (input, continuation) = AsyncStream<AnalyzerInput>.makeStream()
+    let feeder = Task.detached(priority: .userInitiated) {
+        var sawAudio = false
+        for await frames in frames {
+            guard let box = frames.payload as? AnalyzerInputBox else { continue }
+            if !sawAudio { sawAudio = true; onEvent(.active) }
+            continuation.yield(AnalyzerInput(buffer: box.buffer))
+        }
+        if !Task.isCancelled, let format, let silence = silence(format, frames: tailPadFrames(sampleRate: format.sampleRate)) {
+            continuation.yield(AnalyzerInput(buffer: silence))
+        }
+        continuation.finish()
+    }
+    return (input, feeder)
+}
+
+private func silence(_ format: AVAudioFormat, frames: Int) -> AVAudioPCMBuffer? {
+    guard frames > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames))
+    else { return nil }
+    buffer.frameLength = AVAudioFrameCount(frames)
+    for channel in UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList) {
+        if let data = channel.mData { memset(data, 0, Int(channel.mDataByteSize)) }
+    }
+    return buffer
 }
 
 /// Finished segments arrive while the user is still talking; the volatile tail
