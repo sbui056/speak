@@ -18,6 +18,13 @@ struct ReplacementPairTests {
         #expect(applyPairs("Cash me", pairs: [pair("cash", "iOS")]) == "iOS me")
     }
 
+    @Test func midSentenceCapitalIsNotCarried() {
+        // The recognizer capitalizes what it takes for a name.
+        let pairs = [pair("jason", "json")]
+        #expect(applyPairs("send the Jason file", pairs: pairs) == "send the json file")
+        #expect(applyPairs("Done. Jason file sent", pairs: pairs) == "Done. Json file sent")
+    }
+
     @Test func matchesWholeWordsOnly() {
         #expect(applyPairs("the cashier has cash", pairs: [pair("cash", "cache")]) == "the cashier has cache")
     }
@@ -145,6 +152,18 @@ struct DictionaryFileVersionTests {
         #expect(files.loadDictionary().value == d)
         let json = try String(contentsOf: files.directory.appendingPathComponent("dictionary.json"), encoding: .utf8)
         #expect(json.contains(#""version":2"#))
+    }
+
+    @Test func malformedPairInFileKeepsEverythingElse() throws {
+        let files = tempFiles()
+        defer { try? FileManager.default.removeItem(at: files.directory) }
+        try FileManager.default.createDirectory(at: files.directory, withIntermediateDirectories: true)
+        try Data(#"{"version":2,"terms":["Kubernetes"],"pairs":[{"heard":"pool request"},{"heard":"x","write":5},"oops",{"heard":"really try","write":"retry"}]}"#.utf8)
+            .write(to: files.directory.appendingPathComponent("dictionary.json"))
+        let loaded = files.loadDictionary()
+        #expect(!loaded.wasCorrupt)
+        #expect(loaded.value.terms == ["Kubernetes"])
+        #expect(loaded.value.pairs == [ReplacementPair(heard: "really try", write: "retry")])
     }
 
     @Test func invalidPairInFileIsDropped() throws {

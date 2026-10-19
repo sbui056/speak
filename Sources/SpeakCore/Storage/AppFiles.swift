@@ -27,7 +27,7 @@ public struct AppFiles: Sendable {
         guard let data = try? Data(contentsOf: url) else { return Loaded(value: TermDictionary(), wasCorrupt: false) }
         do {
             let file = try JSONDecoder().decode(DictionaryFile.self, from: data)
-            return Loaded(value: TermDictionary(validating: file.terms, pairs: file.pairs ?? []), wasCorrupt: false)
+            return Loaded(value: TermDictionary(validating: file.terms, pairs: (file.pairs ?? []).compactMap(\.pair)), wasCorrupt: false)
         } catch {
             moveAside(url)
             return Loaded(value: TermDictionary(), wasCorrupt: true)
@@ -35,7 +35,8 @@ public struct AppFiles: Sendable {
     }
 
     public func saveDictionary(_ dictionary: TermDictionary) throws {
-        let data = try JSONEncoder().encode(DictionaryFile(version: 2, terms: dictionary.terms, pairs: dictionary.pairs))
+        let data = try JSONEncoder().encode(DictionaryFile(version: 2, terms: dictionary.terms,
+                                                             pairs: dictionary.pairs.map { StoredPair(heard: $0.heard, write: $0.write) }))
         try write(data, to: Self.dictionaryFile)
     }
 
@@ -82,7 +83,30 @@ public struct AppFiles: Sendable {
     private struct DictionaryFile: Codable {
         var version: Int
         var terms: [String]
-        var pairs: [ReplacementPair]?
+        var pairs: [StoredPair]?
+    }
+
+    /// A pair as stored. A malformed entry decodes as empty and is dropped, so
+    /// one bad pair never sets aside the whole dictionary.
+    private struct StoredPair: Codable {
+        var heard: String?
+        var write: String?
+
+        init(heard: String, write: String) {
+            self.heard = heard
+            self.write = write
+        }
+
+        init(from decoder: any Decoder) {
+            let fields = try? decoder.container(keyedBy: CodingKeys.self)
+            heard = try? fields?.decodeIfPresent(String.self, forKey: .heard)
+            write = try? fields?.decodeIfPresent(String.self, forKey: .write)
+        }
+
+        var pair: ReplacementPair? {
+            guard let heard, let write else { return nil }
+            return ReplacementPair(heard: heard, write: write)
+        }
     }
 
     private func write(_ data: Data, to name: String) throws {

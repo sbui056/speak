@@ -14,9 +14,10 @@ public struct ReplacementPair: Codable, Equatable, Sendable {
 
 /// Replaces each "heard" phrase (whole words, any case, any whitespace between
 /// its words) with its "write" text. Longest first, one pass over the original
-/// text, so a replacement is never replaced again. A capitalized match keeps
-/// its capital when "write" is all lowercase ("Pool request" → "Pull request");
-/// otherwise "write" is used exactly as typed.
+/// text, so a replacement is never replaced again. A capitalized match at the
+/// start of a sentence keeps its capital when "write" is all lowercase ("Pool
+/// request" → "Pull request"); otherwise "write" is used exactly as typed, since
+/// a capital mid-sentence is the recognizer guessing a name ("Jason" → "json").
 public func applyPairs(_ text: String, pairs: [ReplacementPair]) -> String {
     guard !pairs.isEmpty, !text.isEmpty else { return text }
     let byLength = pairs.sorted { $0.heard.count > $1.heard.count }
@@ -27,10 +28,17 @@ public func applyPairs(_ text: String, pairs: [ReplacementPair]) -> String {
         guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
         else { continue }
         var write = byLength[group - 1].write
-        if ns.substring(with: match.range).first?.isUppercase == true, !write.contains(where: \.isUppercase) {
+        if ns.substring(with: match.range).first?.isUppercase == true, !write.contains(where: \.isUppercase),
+           startsSentence(ns.substring(to: match.range.location)) {
             write = write.prefix(1).uppercased() + write.dropFirst()
         }
         result.replaceCharacters(in: match.range, with: write)
     }
     return result as String
+}
+
+/// True when `before` is empty or ends a sentence (., !, ?), ignoring spaces.
+private func startsSentence(_ before: String) -> Bool {
+    guard let last = before.last(where: { !$0.isWhitespace }) else { return true }
+    return ".!?".contains(last)
 }
