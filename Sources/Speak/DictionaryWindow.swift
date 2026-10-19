@@ -174,7 +174,7 @@ private struct TermsSection: View {
     @State private var packStatus: String?
     @FocusState private var addFocused: Bool
 
-    private var packAdded: Bool { TechTerms.terms.contains(where: model.terms.contains) }
+    private var packAdded: Bool { model.dictionary.pack != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -218,7 +218,7 @@ private struct TermsSection: View {
                 Spacer()
                 if packAdded {
                     Button("Remove tech terms") {
-                        _ = model.removePack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+                        _ = model.removePack()
                         packStatus = nil
                     }
                 } else {

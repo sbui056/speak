@@ -27,7 +27,8 @@ public struct AppFiles: Sendable {
         guard let data = try? Data(contentsOf: url) else { return Loaded(value: TermDictionary(), wasCorrupt: false) }
         do {
             let file = try JSONDecoder().decode(DictionaryFile.self, from: data)
-            return Loaded(value: TermDictionary(validating: file.terms, pairs: (file.pairs ?? []).compactMap(\.pair)), wasCorrupt: false)
+            return Loaded(value: TermDictionary(validating: file.terms, pairs: (file.pairs ?? []).compactMap(\.pair),
+                                                pack: file.pack?.record), wasCorrupt: false)
         } catch {
             moveAside(url)
             return Loaded(value: TermDictionary(), wasCorrupt: true)
@@ -36,7 +37,8 @@ public struct AppFiles: Sendable {
 
     public func saveDictionary(_ dictionary: TermDictionary) throws {
         let data = try JSONEncoder().encode(DictionaryFile(version: 2, terms: dictionary.terms,
-                                                             pairs: dictionary.pairs.map { StoredPair(heard: $0.heard, write: $0.write) }))
+                                                             pairs: dictionary.pairs.map { StoredPair(heard: $0.heard, write: $0.write) },
+                                                             pack: dictionary.pack.map(StoredPack.init)))
         try write(data, to: Self.dictionaryFile)
     }
 
@@ -84,6 +86,30 @@ public struct AppFiles: Sendable {
         var version: Int
         var terms: [String]
         var pairs: [StoredPair]?
+        var pack: StoredPack?
+    }
+
+    /// What the tech-term pack added. Unreadable means unknown: Remove is then
+    /// not offered, and nothing else is lost.
+    private struct StoredPack: Codable {
+        var terms: [String]?
+        var pairs: [StoredPair]?
+
+        init(_ record: PackRecord) {
+            terms = record.terms
+            pairs = record.pairs.map { StoredPair(heard: $0.heard, write: $0.write) }
+        }
+
+        init(from decoder: any Decoder) {
+            let fields = try? decoder.container(keyedBy: CodingKeys.self)
+            terms = try? fields?.decodeIfPresent([String].self, forKey: .terms)
+            pairs = try? fields?.decodeIfPresent([StoredPair].self, forKey: .pairs)
+        }
+
+        var record: PackRecord? {
+            guard terms != nil || pairs != nil else { return nil }
+            return PackRecord(terms: terms ?? [], pairs: (pairs ?? []).compactMap(\.pair))
+        }
     }
 
     /// A pair as stored. A malformed entry decodes as empty and is dropped, so

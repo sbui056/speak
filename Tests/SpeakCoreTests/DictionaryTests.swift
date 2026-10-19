@@ -75,6 +75,10 @@ struct TermCorrectionTests {
         #expect(correct("Retry it", ["retry", "Retro"], misspelled: ["retry"]) == "Retry it")
     }
 
+    @Test func lowercaseTermStillFixesNearMisses() {
+        #expect(correct("run kubectal now", ["kubectl"], misspelled: ["kubectal"]) == "run kubectl now")
+    }
+
     @Test func changedTermsAreUsedNextTime() {
         #expect(correct("ask siobhan", ["Siobhan"]) == "ask Siobhan")
         #expect(correct("ask siobhan", ["SIOBHAN"]) == "ask SIOBHAN")

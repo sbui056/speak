@@ -25,6 +25,12 @@ public enum TermError: Error, Equatable, Sendable {
     }
 }
 
+/// The entries a pack added.
+public struct PackRecord: Codable, Equatable, Sendable {
+    public var terms: [String]
+    public var pairs: [ReplacementPair]
+}
+
 /// Names and terms the user wants spelled their way. Every stored term is
 /// trimmed, NFC-normalized, unique ignoring case, and free of `<` `>`, which
 /// keeps it safe to put in a rewrite prompt. Replacement pairs follow the same
@@ -32,13 +38,17 @@ public enum TermError: Error, Equatable, Sendable {
 public struct TermDictionary: Equatable, Sendable {
     public private(set) var terms: [String] = []
     public private(set) var pairs: [ReplacementPair] = []
+    /// What "Add common tech terms" actually added, so Remove takes out only
+    /// that (never the user's own copy of a pack term). Nil until it's added.
+    public private(set) var pack: PackRecord?
 
     public init() {}
 
     /// Builds from untrusted input (a file), keeping only entries that pass validation.
-    public init(validating raw: [String], pairs rawPairs: [ReplacementPair] = []) {
+    public init(validating raw: [String], pairs rawPairs: [ReplacementPair] = [], pack: PackRecord? = nil) {
         for term in raw { try? add(term) }
         for pair in rawPairs { try? addPair(heard: pair.heard, write: pair.write) }
+        self.pack = pack
     }
 
     private static func normalize(_ raw: String) -> String {
@@ -105,21 +115,24 @@ public struct TermDictionary: Equatable, Sendable {
         pairs.remove(at: index)
     }
 
-    /// Adds every pack entry that passes validation and fits; duplicates and
-    /// entries past a limit count as skipped.
+    /// Adds every pack entry that passes validation and fits, and remembers
+    /// which; duplicates and entries past a limit count as skipped.
     public mutating func addPack(terms packTerms: [String], pairs packPairs: [ReplacementPair]) -> (added: Int, skipped: Int) {
-        var added = 0
-        for term in packTerms where (try? add(term)) != nil { added += 1 }
-        for pair in packPairs where (try? addPair(heard: pair.heard, write: pair.write)) != nil { added += 1 }
+        var record = pack ?? PackRecord(terms: [], pairs: [])
+        for term in packTerms where (try? add(term)) != nil { record.terms.append(term) }
+        for pair in packPairs where (try? addPair(heard: pair.heard, write: pair.write)) != nil { record.pairs.append(pair) }
+        let added = record.terms.count + record.pairs.count - (pack.map { $0.terms.count + $0.pairs.count } ?? 0)
+        pack = record
         return (added, packTerms.count + packPairs.count - added)
     }
 
-    /// Removes the entries equal to pack entries, including ones the user had
-    /// typed in themselves, and returns how many went.
-    public mutating func removePack(terms packTerms: [String], pairs packPairs: [ReplacementPair]) -> Int {
+    /// Removes the entries the pack added and still present, and returns how many went.
+    public mutating func removePack() -> Int {
+        guard let record = pack else { return 0 }
         let before = terms.count + pairs.count
-        terms.removeAll { packTerms.contains($0) }
-        pairs.removeAll { packPairs.contains($0) }
+        terms.removeAll { record.terms.contains($0) }
+        pairs.removeAll { record.pairs.contains($0) }
+        pack = nil
         return before - terms.count - pairs.count
     }
 

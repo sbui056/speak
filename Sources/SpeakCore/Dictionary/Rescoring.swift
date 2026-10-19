@@ -4,10 +4,21 @@ public struct RecognizedSegment: Equatable, Sendable {
     public let text: String
     /// Other readings, most likely first; never the top text.
     public let alternatives: [String]
+    /// The recognizer's confidence (0–1) in each of the top text's words
+    /// (`comparableWords`), or nil when unknown.
+    public let confidences: [Double]?
 
-    public init(text: String, alternatives: [String]) {
+    public init(text: String, alternatives: [String], confidences: [Double]? = nil) {
         self.text = text
         self.alternatives = alternatives
+        self.confidences = confidences.flatMap { $0.count == comparableWords(text).count ? $0 : nil }
+    }
+
+    /// From the recognizer's runs (pieces of the top text with one confidence
+    /// each). A word split across runs leaves the confidences unknown.
+    public init(text: String, alternatives: [String], runs: [(text: String, confidence: Double?)]) {
+        let perWord = runs.flatMap { run in Array(repeating: run.confidence ?? 1, count: comparableWords(run.text).count) }
+        self.init(text: text, alternatives: alternatives, confidences: perWord)
     }
 }
 
@@ -18,11 +29,15 @@ public struct RecognizedSegment: Equatable, Sendable {
 ///   loses none of the terms the top reading has;
 /// - a word it changes lies inside that term, and it changes at most
 ///   2 × the term's words + 1 words, counting both sides;
-/// - it doesn't repeat a word side by side where the top reading didn't ("the, the").
+/// - it doesn't repeat a word side by side where the top reading didn't ("the, the");
+/// - for a term with no capital (an everyday word like "cache" or "main"), the
+///   recognizer was unsure of every word it replaces (confidence below 0.95),
+///   so speech that clearly said "cash" stays "cash".
 /// Terms that compare as one character ("C++" → "c") never rescore: any lone
 /// letter would match them.
 public func rescore(_ segments: [RecognizedSegment], terms: [String]) -> String {
-    let terms = terms.map(comparableWords).filter { $0.joined().count > 1 }
+    let terms = terms.filter { comparableWords($0).joined().count > 1 }
+        .map { RescoreTerm(words: comparableWords($0), hasCapital: $0.contains(where: \.isUppercase)) }
     return segments.reduce("") { text, segment in
         joinedTranscript(text, terms.isEmpty ? segment.text : bestReading(segment, terms: terms))
     }
@@ -34,9 +49,18 @@ public func joinedTranscript(_ a: String, _ b: String) -> String {
     return last.isWhitespace || first.isWhitespace ? a + b : a + " " + b
 }
 
-private func bestReading(_ segment: RecognizedSegment, terms: [[String]]) -> String {
+/// Below this the recognizer counts as unsure of a word (lab: misheard words
+/// median 0.62, correct ones 0.985).
+private let lowConfidence = 0.95
+
+private struct RescoreTerm {
+    let words: [String]
+    let hasCapital: Bool
+}
+
+private func bestReading(_ segment: RecognizedSegment, terms: [RescoreTerm]) -> String {
     let top = comparableWords(segment.text)
-    let found = terms.map { (term: $0, count: occurrences(of: $0, in: top).count) }
+    let found = terms.map { (term: $0, count: occurrences(of: $0.words, in: top).count) }
     let missing = found.filter { $0.count == 0 }.map(\.term)
     let kept = found.filter { $0.count > 0 }
     guard !missing.isEmpty else { return segment.text }
@@ -44,12 +68,14 @@ private func bestReading(_ segment: RecognizedSegment, terms: [[String]]) -> Str
     for alternative in segment.alternatives {
         let words = comparableWords(alternative)
         guard adjacentRepeats(words).isSubset(of: topRepeats),
-              kept.allSatisfy({ occurrences(of: $0.term, in: words).count >= $0.count }) else { continue }
+              kept.allSatisfy({ occurrences(of: $0.term.words, in: words).count >= $0.count }) else { continue }
         let ops = alignWords(top, words)
         let changed = ops.filter { if case .same = $0 { false } else { true } }.count
         let inserted = ops.compactMap { if case .insert(let j) = $0 { j } else { nil } }
-        for term in missing where changed <= 2 * term.count + 1 {
-            let spans = occurrences(of: term, in: words)
+        let replaced = ops.compactMap { if case .delete(let i) = $0 { i } else { nil } }
+        let unsure = segment.confidences.map { c in replaced.allSatisfy { c[$0] < lowConfidence } } ?? false
+        for term in missing where changed <= 2 * term.words.count + 1 && (term.hasCapital || unsure) {
+            let spans = occurrences(of: term.words, in: words)
             if inserted.contains(where: { j in spans.contains { $0.contains(j) } }) {
                 return withOuterSpace(of: segment.text, alternative)
             }

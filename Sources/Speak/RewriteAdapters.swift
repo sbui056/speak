@@ -85,8 +85,10 @@ final class FoundationRewriter: Rewriter {
 final class SystemSpellChecker: SpellChecker {
     @MainActor func isMisspelled(_ word: String, language: String) -> Bool {
         let checker = NSSpellChecker.shared
-        let lang = checker.availableLanguages.contains(language) ? language
-            : checker.availableLanguages.first { $0.hasPrefix(language.prefix(2)) }
+        // No checker for this language: another language's checker would flag
+        // every word, so nothing counts as misspelled.
+        guard let lang = checker.availableLanguages.contains(language) ? language
+            : checker.availableLanguages.first(where: { $0.hasPrefix(language.prefix(2)) }) else { return false }
         let range = checker.checkSpelling(of: word, startingAt: 0, language: lang, wrap: false,
                                           inSpellDocumentWithTag: 0, wordCount: nil)
         return range.location != NSNotFound

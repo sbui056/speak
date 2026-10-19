@@ -22,7 +22,8 @@ final class SpeechAnalyzerTranscriber: Transcriber {
         // Alternatives cost nothing measurable and let dictionary terms pick
         // between readings (`rescore`); the recognizer ignores contextual strings.
         SpeechTranscriber(locale: locale, transcriptionOptions: [],
-                          reportingOptions: [.volatileResults, .alternativeTranscriptions], attributeOptions: [])
+                          reportingOptions: [.volatileResults, .alternativeTranscriptions],
+                          attributeOptions: [.transcriptionConfidence])
     }
 
     /// The audio format the analyzer wants; the audio source converts to it.
@@ -56,7 +57,10 @@ final class SpeechAnalyzerTranscriber: Transcriber {
                 let text = String(result.text.characters)
                 // The first alternative is normally the top reading itself.
                 let alternatives = result.isFinal ? result.alternatives.map { String($0.characters) }.filter { $0 != text } : []
-                onEvent(.partial(transcript.add(text, alternatives: alternatives, isFinal: result.isFinal)))
+                let runs = result.isFinal
+                    ? result.text.runs.map { (text: String(result.text[$0.range].characters), confidence: $0.transcriptionConfidence) }
+                    : []
+                onEvent(.partial(transcript.add(text, alternatives: alternatives, runs: runs, isFinal: result.isFinal)))
             }
         }
         do {
@@ -138,10 +142,10 @@ private final class Transcript: Sendable {
     }
 
     /// Records a result and returns everything recognized so far (top readings).
-    func add(_ text: String, alternatives: [String], isFinal: Bool) -> String {
+    func add(_ text: String, alternatives: [String], runs: [(text: String, confidence: Double?)], isFinal: Bool) -> String {
         state.withLock { s in
             if isFinal {
-                s.finals.append(RecognizedSegment(text: text, alternatives: alternatives))
+                s.finals.append(RecognizedSegment(text: text, alternatives: alternatives, runs: runs))
                 s.text = joinedTranscript(s.text, text)
                 s.volatile = ""
             } else {

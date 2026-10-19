@@ -25,14 +25,14 @@ public func makeLiteral(_ raw: String, terms: [String], pairs: [ReplacementPair]
 public func correctTerms(_ text: String, terms: [String], isMisspelled: (String) -> Bool) -> String {
     guard !terms.isEmpty, !text.isEmpty else { return text }
     let ns = text as NSString
-    var edits: [(range: NSRange, term: String)] = []
+    var edits: [(range: NSRange, term: String, exact: Bool)] = []
 
     let (byLength, regex) = termPattern(terms)
     if let regex {
         for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
             else { continue }
-            edits.append((match.range, byLength[group - 1]))
+            edits.append((match.range, byLength[group - 1], true))
         }
     }
 
@@ -48,12 +48,14 @@ public func correctTerms(_ text: String, terms: [String], isMisspelled: (String)
             let near = fuzzyTerms.filter { isOneEditAway(chars, $0.chars) }.map(\.term)
             // Two terms equally close is a guess; leave the word alone.
             guard near.count == 1, isMisspelled(word) else { continue }
-            edits.append((match.range, near[0]))
+            edits.append((match.range, near[0], false))
         }
     }
 
     let result = NSMutableString(string: text)
-    for edit in edits.sorted(by: { $0.range.location > $1.range.location }) where edit.term.contains(where: \.isUppercase) {
+    // An exact match of a lowercase term only shields its words; a near miss is always fixed.
+    for edit in edits.sorted(by: { $0.range.location > $1.range.location })
+    where !edit.exact || edit.term.contains(where: \.isUppercase) {
         result.replaceCharacters(in: edit.range, with: edit.term)
     }
     return result as String

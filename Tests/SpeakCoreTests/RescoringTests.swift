@@ -2,8 +2,29 @@ import Testing
 @testable import SpeakCore
 
 struct RescoringTests {
-    private func seg(_ text: String, alts: [String] = []) -> RecognizedSegment {
-        RecognizedSegment(text: text, alternatives: alts)
+    /// The recognizer unsure of every word, unless a confidence is given.
+    private func seg(_ text: String, alts: [String] = [], confidence: Double = 0.5) -> RecognizedSegment {
+        RecognizedSegment(text: text, alternatives: alts,
+                          confidences: Array(repeating: confidence, count: comparableWords(text).count))
+    }
+
+    @Test func confidentEverydayWordIsNotSwappedForALowercaseTerm() {
+        // "cash" heard clearly stays cash even with the pack's "cache" in the dictionary.
+        #expect(rescore([seg("I paid in cash", alts: ["I paid in cache"], confidence: 0.99)], terms: ["cache"])
+            == "I paid in cash")
+        #expect(rescore([RecognizedSegment(text: "I paid in cash", alternatives: ["I paid in cache"], confidences: nil)],
+                        terms: ["cache"]) == "I paid in cash")
+    }
+
+    @Test func onlyTheReplacedWordsNeedLowConfidence() {
+        let segment = RecognizedSegment(text: "I paid in cash", alternatives: ["I paid in cache"],
+                                        confidences: [0.99, 0.99, 0.99, 0.6])
+        #expect(rescore([segment], terms: ["cache"]) == "I paid in cache")
+    }
+
+    @Test func termWithACapitalNeedsNoLowConfidence() {
+        #expect(rescore([seg("See, I should be green", alts: ["CI should be green"], confidence: 0.99)], terms: ["CI"])
+            == "CI should be green")
     }
 
     @Test func alternativeWithTheTermReplacesTheTop() {

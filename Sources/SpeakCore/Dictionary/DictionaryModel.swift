@@ -59,8 +59,8 @@ public final class DictionaryModel {
         return result
     }
 
-    public func removePack(terms: [String], pairs: [ReplacementPair]) -> Int {
-        let removed = dictionary.removePack(terms: terms, pairs: pairs)
+    public func removePack() -> Int {
+        let removed = dictionary.removePack()
         changed()
         return removed
     }

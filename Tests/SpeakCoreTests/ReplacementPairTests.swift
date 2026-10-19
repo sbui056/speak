@@ -210,17 +210,43 @@ struct TechTermsTests {
         #expect(again.skipped == TechTerms.terms.count + TechTerms.pairs.count)
     }
 
-    @Test func removeKeepsOwnEntriesButAlsoRemovesOwnCopiesOfPackTerms() throws {
-        // Accepted trade-off: a pack term the user had added before is removed too.
+    @Test func removeTakesOutOnlyWhatThePackAdded() throws {
         var d = TermDictionary()
         try d.add("Siobhan")
-        try d.add("Kubernetes")
+        try d.add("Kubernetes") // also a pack term: the user's own, so it stays
         try d.addPair(heard: "jason", write: "json")
         _ = d.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
-        let removed = d.removePack(terms: TechTerms.terms, pairs: TechTerms.pairs)
-        #expect(d.terms == ["Siobhan"])
+        #expect(d.pack?.terms.contains("Kubernetes") == false)
+        let removed = d.removePack()
+        #expect(d.terms == ["Siobhan", "Kubernetes"])
         #expect(d.pairs == [ReplacementPair(heard: "jason", write: "json")])
-        #expect(removed == TechTerms.terms.count + TechTerms.pairs.count)
+        #expect(removed == TechTerms.terms.count - 1 + TechTerms.pairs.count)
+        #expect(d.pack == nil)
+    }
+
+    @Test func packIsRememberedInTheFile() throws {
+        let files = tempFiles()
+        defer { try? FileManager.default.removeItem(at: files.directory) }
+        var d = TermDictionary()
+        try d.add("Kubernetes")
+        _ = d.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+        try files.saveDictionary(d)
+        var loaded = files.loadDictionary().value
+        #expect(loaded == d)
+        _ = loaded.removePack()
+        #expect(loaded.terms == ["Kubernetes"])
+    }
+
+    @Test func malformedPackInFileIsIgnored() throws {
+        let files = tempFiles()
+        defer { try? FileManager.default.removeItem(at: files.directory) }
+        try FileManager.default.createDirectory(at: files.directory, withIntermediateDirectories: true)
+        try Data(#"{"version":2,"terms":["Kubernetes"],"pack":"oops"}"#.utf8)
+            .write(to: files.directory.appendingPathComponent("dictionary.json"))
+        let loaded = files.loadDictionary()
+        #expect(!loaded.wasCorrupt)
+        #expect(loaded.value.terms == ["Kubernetes"])
+        #expect(loaded.value.pack == nil)
     }
 
     @MainActor @Test func modelAddsAndRemovesThePackWithOneAnnouncementEach() {
@@ -232,7 +258,7 @@ struct TechTermsTests {
         let result = model.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
         #expect(result.added == TechTerms.terms.count + TechTerms.pairs.count)
         #expect(files.loadDictionary().value.terms.count == TechTerms.terms.count)
-        #expect(model.removePack(terms: TechTerms.terms, pairs: TechTerms.pairs) == result.added)
+        #expect(model.removePack() == result.added)
         #expect(announced == 2)
         #expect(files.loadDictionary().value.terms.isEmpty)
     }
