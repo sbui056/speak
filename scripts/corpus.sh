@@ -26,8 +26,8 @@ awk -F '\t' '
     for (m in modes) {
       for (i = 1; i <= nf[m]; i++) a[i] = first[m, i]; mf = nf[m] ? median(a, nf[m]) : 0
       for (i = 1; i <= nt[m]; i++) b[i] = total[m, i]; mt = median(b, nt[m])
-      printf "%-9s ok=%d dropped=%d answered=%d fallback=%d  median first=%.3fs total=%.3fs\n", m,
-        verdict[m, "ok"], verdict[m, "dropped"], verdict[m, "answered"], verdict[m, "fallback"], mf, mt
+      printf "%-9s ok=%d unfixed=%d dropped=%d answered=%d fallback=%d  median first=%.3fs total=%.3fs\n", m,
+        verdict[m, "ok"], verdict[m, "unfixed"], verdict[m, "dropped"], verdict[m, "answered"], verdict[m, "fallback"], mf, mt
     }
   }' "$out" | sort
 if [ -n "$report" ]; then cp "$out" "$report"; echo "full report: $report"; fi

@@ -1,7 +1,8 @@
 import Synchronization
 
 /// Stands in for the language model. Its default reply is the fake-mode one:
-/// the first word uppercased plus " (polished)", so the preview path is visible.
+/// the first word uppercased plus " too", so the preview path is visible (a
+/// wording change) while the keep guard still accepts it (a function word).
 public final class FakeRewriter: Rewriter {
     public struct Config: Sendable {
         public var availability: RewriteAvailability = .available
@@ -58,7 +59,7 @@ public final class FakeRewriter: Rewriter {
     private static func polish(_ text: String) -> String {
         var words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
         if let first = words.first { words[0] = first.uppercased() }
-        return words.joined(separator: " ") + " (polished)"
+        return words.joined(separator: " ") + " too"
     }
 
     private func transcript(in prompt: String) -> String {

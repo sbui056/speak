@@ -179,31 +179,66 @@ private func stripAngleBrackets(_ text: String) -> String {
     text.filter { $0 != "<" && $0 != ">" }
 }
 
+/// Why a reply was turned down. Logged by name only.
+public enum RewriteRejection: Error, Equatable, Sendable {
+    /// Not exactly one `<cleaned>` block, or an empty one.
+    case format
+    case ratio
+    case overlap
+    /// Concise dropped a word it may not drop.
+    case dropped
+    /// Polished changed more than mishearings and grammar.
+    case keep(KeepFailure)
+
+    public var name: String {
+        switch self {
+        case .format: "format"
+        case .ratio: "ratio"
+        case .overlap: "overlap"
+        case .dropped: "dropped"
+        case .keep(let failure): "keep.\(failure.rawValue)"
+        }
+    }
+}
+
 /// Accepts the model's reply only if it holds exactly one `<cleaned>` block whose
 /// content is plausibly a cleanup of the input: similar length, and mostly the
-/// speaker's own words. Anything else (an answer, a poem) is rejected.
-public func validateRewrite(_ output: String, literal: String, mode: RewriteMode, terms: [String]) -> String? {
+/// speaker's own words. Anything else (an answer, a poem) is rejected. Polished
+/// replies also pass the keep guard; `unknownWords` and `language` feed it.
+public func validateRewrite(_ output: String, literal: String, mode: RewriteMode, terms: [String],
+                            unknownWords: Set<String> = [], language: String = "en") -> String? {
+    try? checkRewrite(output, literal: literal, mode: mode, terms: terms, unknownWords: unknownWords,
+                      language: language).get()
+}
+
+/// `validateRewrite` with the reason for a rejection.
+public func checkRewrite(_ output: String, literal: String, mode: RewriteMode, terms: [String],
+                         unknownWords: Set<String> = [], language: String = "en") -> Result<String, RewriteRejection> {
     guard output.ranges(of: "<cleaned>").count == 1, output.ranges(of: "</cleaned>").count == 1,
           let open = output.firstRange(of: "<cleaned>"), let close = output.firstRange(of: "</cleaned>"),
-          open.upperBound <= close.lowerBound else { return nil }
+          open.upperBound <= close.lowerBound else { return .failure(.format) }
     let cleaned = String(output[open.upperBound..<close.lowerBound]).trimmed
     let outWords = comparableWords(cleaned)
     let inWords = comparableWords(literal)
-    guard !outWords.isEmpty, !inWords.isEmpty else { return nil }
+    guard !outWords.isEmpty, !inWords.isEmpty else { return .failure(.format) }
 
     let ratio = Double(outWords.count) / Double(inWords.count)
-    guard mode.ratio.contains(ratio) else { return nil }
+    guard mode.ratio.contains(ratio) else { return .failure(.ratio) }
 
     let known = Set(inWords).union(terms.flatMap(comparableWords))
     let overlap = Double(outWords.filter(known.contains).count) / Double(outWords.count)
-    guard overlap >= Constants.overlap else { return nil }
-    if mode == .concise, !droppedOnlyFillers(from: inWords, keeping: outWords) { return nil }
-    return cleaned
+    guard overlap >= Constants.overlap else { return .failure(.overlap) }
+    if mode == .concise, !droppedOnlyFillers(from: inWords, keeping: outWords) { return .failure(.dropped) }
+    if mode == .polished, let failure = keepGuard(literal: literal, cleaned: cleaned, terms: terms,
+                                                  unknownWords: unknownWords, language: language) {
+        return .failure(.keep(failure))
+    }
+    return .success(cleaned)
 }
 
 /// Words Concise may leave out: fillers, lead-ins ("so what I wanted to say
 /// is"), and small words. Anything else dropped means meaning was lost.
-private let droppable: Set<String> = [
+let droppable: Set<String> = [
     "um", "uh", "uhm", "er", "erm", "ah", "hmm", "mm", "like", "so", "basically", "actually", "literally",
     "just", "really", "you", "know", "mean", "okay", "ok", "well", "hey", "oh", "yeah", "anyway",
     "kinda", "sorta", "kind", "sort", "of",

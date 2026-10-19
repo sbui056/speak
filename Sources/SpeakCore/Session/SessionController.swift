@@ -28,8 +28,8 @@ public final class SessionController {
     @ObservationIgnored public var onDelivered: ((DeliveryOutcome) -> Void)?
     /// Called with the text a session gave the user (pasted or copied), for history.
     @ObservationIgnored public var onFinished: ((String) -> Void)?
-    /// Called when the model's reply failed validation, for logging. Never sees text.
-    @ObservationIgnored public var onRewriteRejected: ((RewriteMode) -> Void)?
+    /// Called when the model's reply failed validation, with why, for logging. Never sees text.
+    @ObservationIgnored public var onRewriteRejected: ((RewriteMode, RewriteRejection) -> Void)?
     /// Called at each timed milestone of the current dictation. Never sees text.
     @ObservationIgnored public var onStage: ((SessionStage) -> Void)?
     /// Called after every transition, for logging. Never sees transcript text.
@@ -252,13 +252,20 @@ public final class SessionController {
     private func rewrite(_ id: SessionID, _ literal: String, _ mode: RewriteMode) -> Task<Void, Never> {
         let rewriter = self.rewriter
         let terms = self.terms
+        let language = self.language
+        // Words the spell checker doesn't know are jargon Polished must keep;
+        // asked here, on the main actor, before the model runs.
+        let unknown = mode == .polished ? unknownWords(in: literal, spelling: spelling, language: language) : []
         return Task { [weak self] in
             let prompt = buildRewritePrompt(literal, mode: mode, terms: terms)
             var accepted: String?
             let reply = try? await rewriter.respond(to: prompt)
             if let reply {
-                accepted = validateRewrite(reply.text, literal: literal, mode: mode, terms: terms)
-                if accepted == nil { self?.onRewriteRejected?(mode) }
+                switch checkRewrite(reply.text, literal: literal, mode: mode, terms: terms, unknownWords: unknown,
+                                    language: language) {
+                case .success(let text): accepted = text
+                case .failure(let why): self?.onRewriteRejected?(mode, why)
+                }
             }
             // A reply after the watchdog gave up belongs to no timed dictation.
             if let self, state.current == id, state.phase == .rewriting {

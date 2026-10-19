@@ -3,7 +3,7 @@ import Testing
 
 private let fakeText = Harness.fakeText
 /// What the fake rewriter returns for the fake transcript in Polished.
-private let fakeRewrite = "HELLO world, this is a fake transcript. (polished)"
+private let fakeRewrite = "HELLO world, this is a fake transcript. too"
 
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
@@ -118,6 +118,19 @@ struct RewriteLifecycleTests {
         #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
         #expect(h.pasteboard.text == fakeText)
         #expect(h.controller.preview == nil)
+    }
+
+    @Test func polishedThatChangesAnUnknownWordFallsBackAndSaysWhy() async {
+        let h = Harness(spelling: FakeSpellChecker(misspelled: ["kubectl"]))
+        h.controller.send(.rewriteSettings(mode: .polished, preview: .whenChanged))
+        h.transcriber.configure { $0.text = "run kubectl apply on the cluster now" }
+        h.rewriter.configure { $0.reply = "<cleaned>Run cuddle apply on the cluster now.</cleaned>" }
+        var rejections: [RewriteRejection] = []
+        h.controller.onRewriteRejected = { _, why in rejections.append(why) }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
+        #expect(h.pasteboard.text == "Run kubectl apply on the cluster now")
+        #expect(rejections == [.keep(.lostProtected)])
     }
 
     @Test func slowModelTimesOutToTheLiteral() async {

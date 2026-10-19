@@ -1,0 +1,151 @@
+import Testing
+@testable import SpeakCore
+
+struct PhoneticTests {
+    @Test(arguments: [("pool", "pull"), ("cash", "cache"), ("really try", "retry"), ("meaning", "meeting"),
+                      ("actual", "action"), ("quest", "request"), ("man", "main"), ("clean", "green"),
+                      ("it's called", "to call"), ("share", "shared")])
+    func realMishearingsSoundAlike(_ heard: String, _ meant: String) {
+        #expect(soundsAlike(heard.split(separator: " ").map(String.init), meant.split(separator: " ").map(String.init)))
+    }
+
+    @Test(arguments: [("Thursday", "Tuesday"), ("call", "email"), ("cat", "bat"), ("now", "not"),
+                      ("meeting", "party"), ("deploy", "delete"), ("staging", "production"),
+                      // "tough" keys as "T": one letter is too little to call anything alike.
+                      ("try", "tough")])
+    func differentWordsDoNot(_ heard: String, _ meant: String) {
+        #expect(!soundsAlike([heard], [meant]))
+    }
+
+    @Test func keysFollowThePrototype() {
+        #expect(phoneticKey("cash") == "KX")
+        #expect(phoneticKey("meeting") == "MTNK")
+        #expect(phoneticKey("Thursday") == "0RST")
+        #expect(phoneticKey("kubectl") == "KPKTL")
+    }
+}
+
+struct KeepGuardTests {
+    private func check(_ literal: String, _ cleaned: String, terms: [String] = [], unknown: Set<String> = [],
+                       language: String = "en") -> KeepFailure? {
+        keepGuard(literal: literal, cleaned: cleaned, terms: terms, unknownWords: unknown, language: language)
+    }
+
+    // MARK: Accepted
+
+    @Test(arguments: [
+        ("The meaning notes are in the share folder.", "The meeting notes are in the shared folder."),
+        ("I highlighted the actual items for the team.", "I highlighted the action items for the team."),
+        ("It was the retry logic whenever a quest timed out.", "It was the retry logic whenever a request timed out."),
+        ("Look at the pool request I sent.", "Look at the pull request I sent."),
+        ("The cash wasn't the problem at all.", "The cache wasn't the problem at all."),
+        ("It was the really try logic hammering the server.", "It was the retry logic hammering the server."),
+        ("I pushed the fix to man.", "I pushed the fix to main."),
+        ("CI should be clean in a few minutes.", "CI should be green in a few minutes."),
+        ("Okay, remind me it's called the landlord tomorrow.", "Remind me to call the landlord tomorrow."),
+    ])
+    func soundAlikeFixesPass(_ literal: String, _ cleaned: String) {
+        #expect(check(literal, cleaned) == nil)
+    }
+
+    @Test(arguments: [
+        ("Um, so I think we should, uh, ship it.", "I think we should ship it."),
+        ("I'm gonna send it later.", "I'm going to send it later."),
+        ("The results is ready.", "The results are ready."),
+        ("I don't think so.", "I do not think so."),
+        ("Let's do a follow up next week.", "Let's do a follow-up next week."),
+        ("We need two more days.", "We need 2 more days."),
+        ("we need twenty five chairs", "We need 25 chairs."),
+        ("meet at two thirty pm", "Meet at 2:30 PM."),
+        ("send the report to sarah", "Send the report to Sarah."),
+        ("please review the swift UI change", "Please review the SwiftUI change."),
+    ])
+    func cleanupPasses(_ literal: String, _ cleaned: String) {
+        #expect(check(literal, cleaned) == nil)
+    }
+
+    @Test func dictionaryTermThatStaysPasses() {
+        #expect(check("run kubectl apply on staging", "Run kubectl apply on staging.", terms: ["kubectl"]) == nil)
+    }
+
+    // MARK: Rejected
+
+    @Test func changedWeekdayIsRejected() {
+        #expect(check("Can we do Tuesday instead of Monday?", "Can we do Thursday instead of Monday?") == .lostProtected)
+    }
+
+    @Test func changedNumberIsRejected() {
+        #expect(check("We need 3 more days.", "We need 4 more days.") == .lostProtected)
+        #expect(check("We need three more days.", "We need 4 more days.") == .lostProtected)
+    }
+
+    @Test func addedNumberIsRejected() {
+        #expect(check("I want to go to the store.", "I want two go to the store.") == .addedProtected)
+        #expect(check("Talk to you soon.", "Talk 2 you soon.") == .addedProtected)
+    }
+
+    @Test func droppedNegationIsRejected() {
+        #expect(check("I did not send the invoice.", "I did send the invoice.") == .negation)
+        #expect(check("I don't want the update.", "I do want the update.") == .negation)
+        #expect(check("We never ship on Fridays.", "We ship on Fridays.") == .negation)
+    }
+
+    @Test func changedNameIsRejected() {
+        #expect(check("Please ask Sarah's team first.", "Please ask Sara's team first.") == .lostProtected)
+    }
+
+    @Test func flattenedAcronymIsRejected() {
+        #expect(check("The API is down again.", "The app is down again.") == .lostProtected)
+    }
+
+    @Test func droppedTermIsRejected() {
+        #expect(check("open a ticket in jira today", "Open a ticket in gyro today.", terms: ["jira"]) == .lostProtected)
+    }
+
+    @Test func changedUnknownWordIsRejected() {
+        #expect(check("run kubectl apply now", "Run cuddle apply now.", unknown: ["kubectl"]) == .lostProtected)
+    }
+
+    @Test func unrelatedWordIsRejected() {
+        #expect(check("The meeting is at noon.", "The party is at noon.") == .unrelated)
+    }
+
+    @Test func addedContentIsRejected() {
+        #expect(check("Send the file.", "Send the file to legal.") == .unrelated)
+    }
+
+    @Test func tooManyFixesAreRejected() {
+        // Three sound-alike fixes in ten words; the cap is max(2, 10 / 10).
+        #expect(check("The cash and the pool and the man are fine", "The cache and the pull and the main are fine")
+            == .tooManyFixes)
+        #expect(check("The cash and the pool are fine today", "The cache and the pull are fine today") == nil)
+    }
+
+    // MARK: Other languages
+
+    @Test func otherLanguagesKeepOnlyLanguageNeutralFacts() {
+        #expect(check("euh je pense qu'on peut livrer 3 écrans", "Je pense que nous pouvons livrer 3 écrans.",
+                      language: "fr") == nil)
+        #expect(check("on livre 3 écrans", "On livre 4 écrans.", language: "fr") == .lostProtected)
+        #expect(check("déployer sur kubectl", "Déployer sur kube.", terms: ["kubectl"], language: "fr") == .lostProtected)
+    }
+}
+
+struct RewriteKeepGuardTests {
+    @Test func polishedReplyThatBreaksAFactFallsBack() {
+        #expect(checkRewrite("<cleaned>Can we do Thursday instead?</cleaned>", literal: "can we do tuesday instead",
+                             mode: .polished, terms: []) == .failure(.keep(.lostProtected)))
+        #expect(validateRewrite("<cleaned>Can we do Thursday instead?</cleaned>", literal: "can we do tuesday instead",
+                                mode: .polished, terms: []) == nil)
+    }
+
+    @Test func polishedReplyThatFixesASoundAlikePasses() {
+        #expect(validateRewrite("<cleaned>The cache wasn't the problem.</cleaned>", literal: "the cash wasn't the problem",
+                                mode: .polished, terms: []) == "The cache wasn't the problem.")
+    }
+
+    @Test func rejectionsHaveLoggableNames() {
+        #expect(RewriteRejection.keep(.negation).name == "keep.negation")
+        #expect(RewriteRejection.ratio.name == "ratio")
+    }
+}

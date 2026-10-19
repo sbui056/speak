@@ -94,7 +94,9 @@ struct RewriteValidationTests {
 
     @Test(arguments: [(RewriteMode.polished, 5, true), (.polished, 4, false), (.polished, 16, true), (.polished, 17, false)])
     func ratioBoundaries(_ mode: RewriteMode, _ count: Int, _ accepted: Bool) {
-        #expect((validate(cleaned(words(count)), ten, mode) != nil) == accepted)
+        // Made-up words: only the length check is under test here, not the keep guard.
+        let result = checkRewrite(cleaned(words(count)), literal: ten, mode: mode, terms: [])
+        #expect((result != .failure(.ratio)) == accepted)
     }
 
     // Concise may drop only fillers, so its 10-word input is three words and seven fillers.
@@ -128,14 +130,15 @@ struct RewriteValidationTests {
         // 10 output words: 6 from the input passes (60%), 5 fails.
         let six = "one two three four five six alpha beta gamma delta"
         let five = "one two three four five omega alpha beta gamma delta"
-        #expect(validate(cleaned(six), ten) != nil)
-        #expect(validate(cleaned(five), ten) == nil)
+        #expect(checkRewrite(cleaned(six), literal: ten, mode: .polished, terms: []) != .failure(.overlap))
+        #expect(checkRewrite(cleaned(five), literal: ten, mode: .polished, terms: []) == .failure(.overlap))
     }
 
     @Test func dictionaryTermsCountTowardOverlap() {
         let out = "one two three four five Siobhan Kubernetes alpha beta gamma"
-        #expect(validate(cleaned(out), ten) == nil)
-        #expect(validate(cleaned(out), ten, terms: ["Siobhan", "Kubernetes"]) != nil)
+        #expect(checkRewrite(cleaned(out), literal: ten, mode: .polished, terms: []) == .failure(.overlap))
+        #expect(checkRewrite(cleaned(out), literal: ten, mode: .polished, terms: ["Siobhan", "Kubernetes"])
+            != .failure(.overlap))
     }
 
     // Injection fixtures: the fake model "obeys" the dictation; the guard catches it.
