@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Speak Architecture v1</title>
+<title>Speak architecture</title>
+<meta name="description" content="How Speak works: an on-device push-to-talk dictation app for macOS. Pipeline, session states, delivery checks, and privacy guarantees.">
+<meta property="og:title" content="Speak architecture">
+<meta property="og:description" content="Hold a key, talk, let go. On-device dictation for macOS, and how it is built.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='10' fill='%23D9480F'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -40,6 +45,7 @@
 
 * { box-sizing: border-box; }
 body {
+  margin: 0;
   background: var(--bg); color: var(--fg);
   font-family: var(--f-body); font-size: 16px; line-height: 1.55;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -52,13 +58,40 @@ h2 { font-size: clamp(24px, 3.2vw, 32px); font-weight: 700; letter-spacing: -0.0
 h3 { font-size: 17px; font-weight: 700; }
 p { margin: 0; max-width: 68ch; }
 code, .mono { font-family: var(--f-mono); font-size: 0.88em; }
-.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+a { color: inherit; text-decoration-color: var(--line); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+a:focus-visible { outline: 2px solid var(--device); outline-offset: 2px; border-radius: 4px; }
+section { scroll-margin-top: 72px; }
+
+/* Top bar */
+.topbar { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--line); margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-inline: max(16px, env(safe-area-inset-left, 0px)); }
+.topbar-in { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 24px; height: 56px; }
+.brand { font: 700 18px var(--f-display); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; letter-spacing: -0.01em; }
+.brand::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.toc { display: flex; gap: 18px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; font-size: 14px; }
+.toc::-webkit-scrollbar { display: none; }
+.toc a { color: var(--muted); text-decoration: none; white-space: nowrap; padding: 6px 0; }
+.toc a:hover { color: var(--fg); }
+.gh { font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; background: var(--surface); }
+.gh:hover { border-color: var(--fg); }
+@media (max-width: 760px) { .toc { display: none; } .topbar-in { justify-content: space-between; } }
 section { display: grid; gap: 20px; }
 .section-head { display: grid; gap: 8px; }
 .section-head p { color: var(--muted); }
 
 /* Header */
-header { padding-top: 56px; display: grid; gap: 24px; }
+header { padding-top: 48px; display: grid; gap: 32px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 48px; align-items: center; }
+.hero-text { display: grid; gap: 20px; align-content: start; }
+.meta { color: var(--muted); font-size: 15px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px; border-radius: 999px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid var(--line); background: var(--surface); }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn:hover { border-color: var(--fg); }
+.demo { margin: 0; display: grid; gap: 10px; }
+.demo img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.demo figcaption { font-size: 14px; }
+@media (max-width: 900px) { .hero { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
 .title-row { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 h1 { font-size: clamp(56px, 9vw, 96px); font-weight: 700; letter-spacing: -0.03em; line-height: 0.95; }
 .live-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); display: inline-block; box-shadow: 0 0 0 6px var(--accent-soft); }
@@ -147,7 +180,7 @@ button:focus-visible { outline: 2px solid var(--device); outline-offset: 2px; }
 /* Privacy */
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 720px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
-.promise { display: grid; gap: 6px; padding: 18px; border-top: 2px solid var(--device); background: var(--surface); border-radius: 0 0 10px 10px; }
+.promise { display: grid; gap: 6px; align-content: start; padding: 18px; border-top: 2px solid var(--device); background: var(--surface); border-radius: 0 0 10px 10px; }
 .promise p { color: var(--muted); font-size: 15px; }
 .promise .how { font-family: var(--f-mono); font-size: 12.5px; color: var(--fg); }
 
@@ -155,7 +188,7 @@ button:focus-visible { outline: 2px solid var(--device); outline-offset: 2px; }
 .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14.5px; }
 th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-th { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+th { font-size: 13px; color: var(--muted); font-weight: 600; }
 tr:last-child td { border-bottom: 0; }
 td:first-child { font-weight: 600; width: 26%; }
 td:last-child { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); width: 18%; }
@@ -179,11 +212,33 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 </head>
 <body>
 
-<div class="wrap">
+<nav class="topbar" aria-label="Sections">
+  <div class="topbar-in">
+    <a class="brand" href="#top">Speak</a>
+    <div class="toc">
+      <a href="#pipeline">Pipeline</a><a href="#states">States</a><a href="#delivery">Delivery</a><a href="#layers">Layers</a><a href="#privacy">Privacy</a><a href="#risks">Failure modes</a><a href="#versions">Versions</a><a href="#built">Implementation</a>
+    </div>
+    <a class="gh" href="https://github.com/sbui056/speak">GitHub</a>
+  </div>
+</nav>
+
+<div class="wrap" id="top">
 <header>
-  <div class="eyebrow">Architecture · version 1 · October 2026</div>
-  <div class="title-row"><h1>Speak</h1><span class="live-dot" aria-hidden="true"></span></div>
-  <p class="lede">Hold a key, talk, let go. Clean text appears at your cursor in any Mac app. Speech recognition and rewriting run on your Mac, and audio never touches the disk.</p>
+  <div class="hero">
+    <div class="hero-text">
+      <div class="title-row"><h1>Speak</h1><span class="live-dot" aria-hidden="true"></span></div>
+      <p class="lede">Hold a key, talk, let go. Clean text appears at your cursor in any Mac app. Speech recognition and rewriting run on your Mac, and audio never touches the disk.</p>
+      <p class="meta">This page explains how Speak is built. Architecture as of October 2026.</p>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/sbui056/speak">Source on GitHub</a>
+        <a class="btn" href="https://github.com/sbui056/speak#install">Install</a>
+      </div>
+    </div>
+    <figure class="demo">
+      <img src="../demo.gif" width="800" height="442" alt="Holding Right Option, speaking, and releasing: the words appear at the cursor.">
+      <figcaption class="meta">Hold Right Option, speak, release.</figcaption>
+    </figure>
+  </div>
   <div class="stats" role="list">
     <div class="stat" role="listitem"><b>0</b><span>network calls</span></div>
     <div class="stat" role="listitem"><b>0 bytes</b><span>of audio on disk</span></div>
@@ -194,7 +249,6 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <section id="pipeline" aria-labelledby="h-pipeline">
   <div class="section-head">
-    <div class="eyebrow">01 · Pipeline</div>
     <h2 id="h-pipeline">One dictation, end to end</h2>
     <p>Pick a scenario and press Play to follow a single dictation. Orange marks the moments the microphone is open.</p>
   </div>
@@ -274,13 +328,12 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
         <g class="node" id="n-ctrl"><rect x="600" y="470" width="470" height="64" rx="10"/><text class="t" x="835" y="497" text-anchor="middle">SessionController</text><text class="s" x="835" y="517" text-anchor="middle">one state machine runs every stage · pure Swift · unit-tested</text></g>
       </svg>
     </div>
-    <figcaption>Solid arrows carry data, dashed arrows are UI updates or an alternate path. Times in the walkthrough are rounded measured medians from Speak's own logs (see the README's latency table).</figcaption>
+    <figcaption>Solid arrows carry data, dashed arrows are UI updates or an alternate path. Times in the walkthrough are rounded measured medians from Speak's own logs (see the <a href="https://github.com/sbui056/speak#performance">README</a>).</figcaption>
   </figure>
 </section>
 
 <section id="states" aria-labelledby="h-states">
   <div class="section-head">
-    <div class="eyebrow">02 · Session states</div>
     <h2 id="h-states">Every dictation follows the same seven states</h2>
     <p>One state machine owns the session. A press during a busy state is ignored, and every path ends back at idle with the mic closed. The last two boxes are how a session ends, not states of their own.</p>
   </div>
@@ -332,7 +385,6 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <section id="delivery" aria-labelledby="h-delivery">
   <div class="section-head">
-    <div class="eyebrow">03 · Delivery</div>
     <h2 id="h-delivery">Paste only when it's safe, otherwise copy</h2>
     <p>The checks run in this order, immediately before the paste. The first failure copies the text and tells you exactly why, so your words are never lost.</p>
   </div>
@@ -350,7 +402,6 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <section id="layers" aria-labelledby="h-layers">
   <div class="section-head">
-    <div class="eyebrow">04 · Layers</div>
     <h2 id="h-layers">Decisions live in pure Swift; the system sits behind a seam</h2>
     <p>Every input enters one queue, and a pure function decides the next state and its effects, so no two events can race. The core never imports AppKit. Every macOS capability reaches it through a small protocol with one real implementation and one fake, so the whole pipeline runs in tests and in CI with no microphone.</p>
   </div>
@@ -377,7 +428,6 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <section id="privacy" aria-labelledby="h-privacy">
   <div class="section-head">
-    <div class="eyebrow">05 · Privacy</div>
     <h2 id="h-privacy">Privacy is enforced, not just promised</h2>
   </div>
   <div class="grid2">
@@ -391,7 +441,6 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <section id="risks" aria-labelledby="h-risks">
   <div class="section-head">
-    <div class="eyebrow">06 · Weak points</div>
     <h2 id="h-risks">Failure modes found in review, and the fix for each</h2>
   </div>
   <div class="tablewrap">
@@ -419,7 +468,6 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <section id="versions" aria-labelledby="h-versions">
   <div class="section-head">
-    <div class="eyebrow">07 · Versions</div>
     <h2 id="h-versions">Version history</h2>
   </div>
   <div class="phases">
@@ -431,7 +479,6 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <section id="built" aria-labelledby="h-built">
   <div class="section-head">
-    <div class="eyebrow">08 · Implementation</div>
     <h2 id="h-built">Implementation notes</h2>
   </div>
   <div class="grid2">
@@ -446,7 +493,7 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
   </div>
 </section>
 
-<footer><span>Speak · architecture v1 · October 2026</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
+<footer><span>Speak is open source under the MIT license. <a href="https://github.com/sbui056/speak">Source on GitHub</a>.</span><span>Native Swift 6 for macOS 26, with no third-party dependencies.</span></footer>
 </div>
 
 <script>
