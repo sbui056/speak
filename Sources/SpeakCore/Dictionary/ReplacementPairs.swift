@@ -20,14 +20,16 @@ public struct ReplacementPair: Codable, Equatable, Sendable {
 /// a capital mid-sentence is the recognizer guessing a name ("Jason" → "json").
 public func applyPairs(_ text: String, pairs: [ReplacementPair]) -> String {
     guard !pairs.isEmpty, !text.isEmpty else { return text }
-    let byLength = pairs.sorted { $0.heard.count > $1.heard.count }
-    guard let regex = phraseRegex(byLength.map(\.heard)) else { return text }
+    let (byLength, pattern) = termPattern(pairs.map(\.heard))
+    // "heard" is unique ignoring case, so each matched phrase has one "write".
+    let writes = Dictionary(pairs.map { ($0.heard.lowercased(), $0.write) }, uniquingKeysWith: { first, _ in first })
+    guard let regex = pattern else { return text }
     let ns = text as NSString
     let result = NSMutableString(string: text)
     for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
         guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
         else { continue }
-        var write = byLength[group - 1].write
+        guard var write = writes[byLength[group - 1].lowercased()] else { continue }
         if ns.substring(with: match.range).first?.isUppercase == true, !write.contains(where: \.isUppercase),
            startsSentence(ns.substring(to: match.range.location)) {
             write = write.prefix(1).uppercased() + write.dropFirst()

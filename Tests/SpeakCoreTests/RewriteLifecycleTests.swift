@@ -133,6 +133,20 @@ struct RewriteLifecycleTests {
         #expect(rejections == [.keep(.lostProtected)])
     }
 
+    @Test func polishedCantUndoAReplacementPair() async {
+        let h = polished()
+        h.transcriber.configure { $0.text = "please open a pool request for the fix today" }
+        h.controller.pairs = [ReplacementPair(heard: "pool request", write: "pull request")]
+        h.rewriter.configure { $0.reply = "<cleaned>Please open a pool request for the fix today.</cleaned>" }
+        var rejections: [RewriteRejection] = []
+        h.controller.onRewriteRejected = { _, why in rejections.append(why) }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle && h.env.pastes.count == 1 })
+        #expect(h.pasteboard.text == "Please open a pull request for the fix today")
+        #expect(rejections == [.keep(.lostProtected)])
+        #expect(h.rewriter.prompts.first?.prompt.hasSuffix("Keep these words exactly: pull request.") == true)
+    }
+
     @Test func slowModelTimesOutToTheLiteral() async {
         let h = polished { $0.rewriter.configure { $0.gated = true } }
         h.hotkey.press()

@@ -251,7 +251,8 @@ public final class SessionController {
     /// guard. The reducer's watchdog decides when to stop waiting.
     private func rewrite(_ id: SessionID, _ literal: String, _ mode: RewriteMode) -> Task<Void, Never> {
         let rewriter = self.rewriter
-        let terms = self.terms
+        // A replacement's output is the user's wording too: the model must keep it.
+        let terms = self.terms + pairs.map(\.write)
         let language = self.language
         // Words the spell checker doesn't know are jargon Polished must keep;
         // asked here, on the main actor, before the model runs.

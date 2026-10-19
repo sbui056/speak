@@ -61,17 +61,21 @@ public func correctTerms(_ text: String, terms: [String], isMisspelled: (String)
     return result as String
 }
 
-/// The last dictionary's alternation, kept because the same terms come back
-/// every dictation and a 200-term pattern is slow to compile.
-private let patternCache = Mutex<(terms: [String], byLength: [String], regex: NSRegularExpression?)?>(nil)
+/// The last few alternations (terms; terms plus pair outputs; pairs' heard
+/// sides), kept because the same lists come back every dictation and a
+/// 200-term pattern is slow to compile.
+private let patternCache = Mutex<[(terms: [String], byLength: [String], regex: NSRegularExpression?)]>([])
 
 /// The terms longest first, so "New York Times" wins over "New York" at the
 /// same spot, and one case-insensitive pattern with a group per term.
-private func termPattern(_ terms: [String]) -> (byLength: [String], regex: NSRegularExpression?) {
-    if let cached = patternCache.withLock({ $0 }), cached.terms == terms { return (cached.byLength, cached.regex) }
+func termPattern(_ terms: [String]) -> (byLength: [String], regex: NSRegularExpression?) {
+    if let cached = patternCache.withLock({ $0.first { $0.terms == terms } }) { return (cached.byLength, cached.regex) }
     let byLength = terms.sorted { $0.count > $1.count }
     let regex = phraseRegex(byLength)
-    patternCache.withLock { $0 = (terms, byLength, regex) }
+    patternCache.withLock { cache in
+        cache.insert((terms, byLength, regex), at: 0)
+        if cache.count > 4 { cache.removeLast() }
+    }
     return (byLength, regex)
 }
 

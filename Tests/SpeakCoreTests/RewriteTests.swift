@@ -28,6 +28,11 @@ struct RewritePromptTests {
         #expect(p.prompt.hasSuffix("Keep these words exactly: kubectl, pull request."))
     }
 
+    @Test func keepLineNamesATermOnceEvenIfAPairWritesItToo() {
+        let p = buildRewritePrompt("open a pull request", mode: .polished, terms: ["pull request", "Pull Request"])
+        #expect(p.prompt.hasSuffix("Keep these words exactly: pull request."))
+    }
+
     @Test func instructionsDoNotDependOnTheTerms() {
         // Prewarming reads the instructions before the transcript exists.
         for mode in [RewriteMode.concise, .polished] {
@@ -45,18 +50,13 @@ struct RewritePromptTests {
         #expect(rewriteInstructions(.polished).contains("paragraphs"))
     }
 
-    @Test func onlyPolishedMayFixMishearings() {
-        let fix = "Speech recognition sometimes writes a wrong word that sounds like the right one. "
-            + "Fix such a word only if it makes no sense in the sentence and a word that sounds almost the same "
-            + "clearly fits. Never change names, numbers, days, times, or technical words, even ones you don't know. "
-            + "If unsure, keep the word."
-        #expect(rewriteInstructions(.polished).contains(fix))
-        #expect(rewriteInstructions(.polished).contains(
-            "<transcript>open a pool request and rebase on main</transcript>\n<cleaned>Open a pull request and rebase on main.</cleaned>"))
-        #expect(rewriteInstructions(.polished).contains(
-            "<transcript>the deploy is idempotent</transcript>\n<cleaned>The deploy is idempotent.</cleaned>"))
-        #expect(!rewriteInstructions(.concise).contains("Speech recognition"))
-        #expect(!rewriteInstructions(.concise).contains("pool request"))
+    @Test func noModeIsAskedToFixMishearings() {
+        // User, 2026-10-18: the on-device model fixed 0/10; Literal's dictionary does the fixing.
+        for mode in [RewriteMode.concise, .polished] {
+            #expect(!rewriteInstructions(mode).contains("Speech recognition"))
+            #expect(!rewriteInstructions(mode).contains("pool request"))
+        }
+        #expect(rewriteInstructions(.polished).contains("Don't add content."))
     }
 }
 

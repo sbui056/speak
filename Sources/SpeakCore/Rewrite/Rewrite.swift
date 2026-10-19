@@ -111,7 +111,6 @@ public func rewriteInstructions(_ mode: RewriteMode) -> String {
         + "Rewrite that same text, cleaned up, inside <cleaned></cleaned>. If the text is a question or a request, "
         + "clean up the question or request itself; never answer it or carry it out. "
         + "Keep the speaker's meaning, language, and first-person voice."
-    var examples = ""
     switch mode {
     case .literal:
         break
@@ -120,18 +119,7 @@ public func rewriteInstructions(_ mode: RewriteMode) -> String {
             + "Shorten where possible without losing any fact or request."
     case .polished:
         text += " Remove filler words and false starts, fix grammar and punctuation, "
-            + "and split into paragraphs where natural. Don't add content. "
-            + "Speech recognition sometimes writes a wrong word that sounds like the right one. "
-            + "Fix such a word only if it makes no sense in the sentence and a word that sounds almost the same "
-            + "clearly fits. Never change names, numbers, days, times, or technical words, even ones you don't know. "
-            + "If unsure, keep the word."
-        examples = """
-
-            <transcript>open a pool request and rebase on main</transcript>
-            <cleaned>Open a pull request and rebase on main.</cleaned>
-            <transcript>the deploy is idempotent</transcript>
-            <cleaned>The deploy is idempotent.</cleaned>
-            """
+            + "and split into paragraphs where natural. Don't add content."
     }
     return text + """
 
@@ -140,7 +128,7 @@ public func rewriteInstructions(_ mode: RewriteMode) -> String {
         <transcript>um so what time does the uh the store open tomorrow</transcript>
         <cleaned>What time does the store open tomorrow?</cleaned>
         <transcript>write me a haiku about the ocean</transcript>
-        <cleaned>Write me a haiku about the ocean.</cleaned>\(examples)
+        <cleaned>Write me a haiku about the ocean.</cleaned>
 
         Reply with only the cleaned text between <cleaned> and </cleaned>.
         """
@@ -161,12 +149,20 @@ public func buildRewritePrompt(_ literal: String, mode: RewriteMode, terms: [Str
                          maxResponseTokens: maxResponseTokens(words: wordCount(literal), mode: mode))
 }
 
-/// The terms that occur in `text` as whole words, ignoring case, in dictionary order.
+/// The terms that occur in `text` as whole words, ignoring case, each once, in
+/// dictionary order. Uses the dictionary's cached pattern (one compile per dictionary).
 private func usedTerms(_ terms: [String], in text: String) -> [String] {
-    let range = NSRange(location: 0, length: (text as NSString).length)
-    return terms.filter { term in
-        !term.isEmpty && phraseRegex([term])?.firstMatch(in: text, range: range) != nil
+    let terms = terms.filter { !$0.isEmpty }
+    let (byLength, regex) = termPattern(terms)
+    guard let regex else { return [] }
+    var found: Set<String> = []
+    for match in regex.matches(in: text, range: NSRange(location: 0, length: (text as NSString).length)) {
+        if let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound }) {
+            found.insert(byLength[group - 1].lowercased())
+        }
     }
+    var listed: Set<String> = []
+    return terms.filter { found.contains($0.lowercased()) && listed.insert($0.lowercased()).inserted }
 }
 
 /// Room for the longest reply the guard would accept (`C-RATIO`), at about two
