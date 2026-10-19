@@ -6,6 +6,7 @@ public enum Messages: Hashable, Sendable {
     case inputMonitoring
     case inputMonitoringRelaunch
     case accessibility
+    case accessibilityMissing
     case secure
     case appChanged
     case noField
@@ -35,6 +36,7 @@ public enum Messages: Hashable, Sendable {
         case .inputMonitoring: "Input Monitoring not granted — hotkey disabled"
         case .inputMonitoringRelaunch: "Input Monitoring granted — relaunch Speak to enable the hotkey"
         case .accessibility: "Accessibility not granted — copied to clipboard"
+        case .accessibilityMissing: "Accessibility not granted — open Settings to allow"
         case .secure: "Secure input is on — copied to clipboard"
         case .appChanged: "App changed — copied to clipboard"
         case .noField: "No text field focused — copied to clipboard"

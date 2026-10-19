@@ -89,12 +89,11 @@ private func bestReading(_ segment: RecognizedSegment, terms: [RescoreTerm]) -> 
 private func withOuterSpace(of original: String, _ text: String) -> String {
     let leading = original.prefix(while: \.isWhitespace)
     let trailing = String(original.reversed().prefix(while: \.isWhitespace).reversed())
-    let core = text.drop(while: \.isWhitespace).reversed().drop(while: \.isWhitespace).reversed()
-    return leading + String(core) + trailing
+    return leading + text.trimmed + trailing
 }
 
 /// Where `phrase` occurs in `words`, as word ranges.
-private func occurrences(of phrase: [String], in words: [String]) -> [Range<Int>] {
+func occurrences(of phrase: [String], in words: [String]) -> [Range<Int>] {
     guard !phrase.isEmpty, words.count >= phrase.count else { return [] }
     return (0...(words.count - phrase.count)).map { $0..<($0 + phrase.count) }
         .filter { words[$0].elementsEqual(phrase) }

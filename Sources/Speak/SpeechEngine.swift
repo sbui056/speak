@@ -43,7 +43,7 @@ final class SpeechAnalyzerTranscriber: Transcriber {
         Log.stt.info("analyzer prepared in \(ContinuousClock.now - started, privacy: .public)")
 
         let transcript = Transcript(terms: terms)
-        // `.active` means the analyzer took mic audio (the C-STT-START watchdog
+        // `.active` means the analyzer took mic audio (the `Constants.sttStart` watchdog
         // waits on it), so it fires as the analyzer reads.
         let sawAudio = Atomic<Bool>(false)
         let input = frames.compactMap { @Sendable frames -> AnalyzerInput? in

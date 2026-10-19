@@ -12,11 +12,11 @@ public enum KeepFailure: String, Equatable, Sendable {
     /// A word was replaced by one that neither sounds like it nor is a grammar fix.
     case unrelated
     /// A word replaced by one that sounds like it: a "fix" Polished wasn't asked
-    /// for (mishearings are Literal's job, user 2026-10-18).
+    /// for. The dictionary fixes mishearings in the Literal step.
     case soundAlike
 }
 
-/// Lets Polished fix grammar but nothing else (invariant 7). The reply is
+/// Lets Polished fix grammar but nothing else. The reply is
 /// aligned with the literal word by word; protected words must survive, and
 /// each changed stretch must be a filler or grammar change, an inflection, or
 /// a join or split ("follow up" → "follow-up"). A word swapped for a
@@ -41,7 +41,7 @@ func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: 
     }
     let present = presentForms(after)
     let termKeys = terms.map(comparableWords).filter { !$0.isEmpty }
-    for term in termKeys where contains(before.map(\.key), term) {
+    for term in termKeys where !occurrences(of: term, in: before.map(\.key)).isEmpty {
         if !containsAllowingInflection(after.map(\.key), term) && !present.contains(term.joined()) { return .lostProtected }
     }
     for (i, token) in before.enumerated() where isProtected(token, english: english, unknownWords: unknownWords) {
@@ -54,7 +54,7 @@ func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: 
     if negations(before) != negations(after) { return .negation }
 
     // A capitalized word may be a name: never "fixed" as a sound-alike.
-    let capitalized = Set(before.filter { $0.raw.first?.isUppercase == true && !["i", "im", "ill", "ive", "id"].contains($0.key) }
+    let capitalized = Set(before.filter { $0.raw.first?.isUppercase == true && !firstPersonI.contains($0.key) }
         .map(\.key))
     let kept = Set(after.map(\.key))
     var fixes = 0
@@ -103,7 +103,8 @@ private struct KeepToken {
     var breaksFromPrevious: Bool { gap.contains(where: { ".,;!?\n".contains($0) }) }
     var isOrdinal: Bool { key.hasSuffix("o") && isNumber || ordinalValues[key] != nil }
 
-    func with(key: String) -> KeepToken {
+    /// This number as an ordinal ("1" + "st"), keyed `key`.
+    func asOrdinal(key: String) -> KeepToken {
         KeepToken(raw: raw, key: key, base: key, startsSentence: startsSentence, isNumber: true, gap: gap)
     }
 }
@@ -124,7 +125,7 @@ private func keepTokens(_ text: String, english: Bool) -> [KeepToken] {
         guard !key.isEmpty, key != "oclock" else { continue }
         // "1st", "22nd": the suffix makes the number an ordinal.
         if gap.isEmpty, let last = tokens.last, last.isNumber, ["st", "nd", "rd", "th"].contains(key) {
-            tokens[tokens.count - 1] = last.with(key: last.key + "o")
+            tokens[tokens.count - 1] = last.asOrdinal(key: last.key + "o")
             continue
         }
         // "noon" is written "12 PM" just as often.
@@ -184,7 +185,11 @@ private func isNumberToken(_ tokens: [KeepToken], _ i: Int, spoken: Bool) -> Boo
     return numberValues[key] != nil || ordinalValues[key] != nil
 }
 
-private let numberValues: [String: Int] = {
+/// "I" and its contractions with the apostrophe dropped: always capitalized, never a name.
+private let firstPersonI: Set<String> = ["i", "im", "ill", "ive", "id"]
+
+/// Spoken number words and their values.
+let numberValues: [String: Int] = {
     var values: [String: Int] = ["oh": 0, "hundred": 100, "thousand": 1000]
     let ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
                 "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
@@ -293,7 +298,7 @@ private func isProtected(_ token: KeepToken, english: Bool, unknownWords: Set<St
     guard letters.count >= 2, !["ok", "okay"].contains(token.key) else { return false }
     if letters.dropFirst().contains(where: \.isUppercase) { return true }
     guard english, letters.first?.isUppercase == true, !token.startsSentence else { return false }
-    return !["i", "im", "ill", "ive", "id"].contains(token.key)
+    return !firstPersonI.contains(token.key)
 }
 
 /// Every word form in the reply, plus each pair of neighbours joined, so a
@@ -321,11 +326,6 @@ private func containsAllowingInflection(_ words: [String], _ phrase: [String]) -
         return window.dropLast().elementsEqual(phrase.dropLast())
             && (window.last == last || (window.last.map { $0.count > last.count && isInflection($0, last) } ?? false))
     }
-}
-
-private func contains(_ words: [String], _ phrase: [String]) -> Bool {
-    guard !phrase.isEmpty, words.count >= phrase.count else { return false }
-    return (0...(words.count - phrase.count)).contains { words[$0..<($0 + phrase.count)].elementsEqual(phrase) }
 }
 
 // MARK: Changes

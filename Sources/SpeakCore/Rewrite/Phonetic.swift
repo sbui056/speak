@@ -1,6 +1,6 @@
 /// A rough sound key for an English word (Metaphone-like): what the speech
 /// recognizer might have confused it with sounds the same. "cash" and "cache"
-/// both give "KX"; "Thursday" gives "0RST" and "Tuesday" "TST".
+/// both give "KX"; "Thursday" gives "0RST" and "Tuesday" "XST".
 func phoneticKey(_ word: String) -> String {
     let w = Array(word.lowercased().filter { ("a"..."z").contains($0) })
     var out: [Character] = []
@@ -41,7 +41,7 @@ func soundsAlike(_ heard: [String], _ meant: [String]) -> Bool {
 
 // Ordered: longer patterns first where they overlap.
 private let digraphs: [(String, String)] = [
-    ("tion", "XN"), ("sion", "XN"), ("tu", "X"), ("ture", "XR"), ("ch", "X"), ("sh", "X"), ("ph", "F"),
+    ("tion", "XN"), ("sion", "XN"), ("ture", "XR"), ("tu", "X"), ("ch", "X"), ("sh", "X"), ("ph", "F"),
     ("th", "0"), ("ck", "K"), ("qu", "K"), ("gh", ""), ("wh", "W"), ("kn", "N"), ("wr", "R"), ("ce", "S"),
     ("ci", "S"), ("cy", "S"), ("ge", "J"), ("gi", "J"), ("x", "KS"),
 ]

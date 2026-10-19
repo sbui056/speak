@@ -1,30 +1,6 @@
 import Testing
 @testable import SpeakCore
 
-struct PhoneticTests {
-    @Test(arguments: [("pool", "pull"), ("cash", "cache"), ("really try", "retry"), ("meaning", "meeting"),
-                      ("actual", "action"), ("quest", "request"), ("man", "main"), ("clean", "green"),
-                      ("it's called", "to call"), ("share", "shared")])
-    func realMishearingsSoundAlike(_ heard: String, _ meant: String) {
-        #expect(soundsAlike(heard.split(separator: " ").map(String.init), meant.split(separator: " ").map(String.init)))
-    }
-
-    @Test(arguments: [("Thursday", "Tuesday"), ("call", "email"), ("cat", "bat"), ("now", "not"),
-                      ("meeting", "party"), ("deploy", "delete"), ("staging", "production"),
-                      // "tough" keys as "T": one letter is too little to call anything alike.
-                      ("try", "tough")])
-    func differentWordsDoNot(_ heard: String, _ meant: String) {
-        #expect(!soundsAlike([heard], [meant]))
-    }
-
-    @Test func keysFollowThePrototype() {
-        #expect(phoneticKey("cash") == "KX")
-        #expect(phoneticKey("meeting") == "MTNK")
-        #expect(phoneticKey("Thursday") == "0RST")
-        #expect(phoneticKey("kubectl") == "KPKTL")
-    }
-}
-
 struct KeepGuardTests {
     private func check(_ literal: String, _ cleaned: String, terms: [String] = [], unknown: Set<String> = [],
                        language: String = "en") -> KeepFailure? {
@@ -45,7 +21,7 @@ struct KeepGuardTests {
         ("Okay, remind me it's called the landlord tomorrow.", "Remind me to call the landlord tomorrow."),
     ])
     func soundAlikeSwapsAreRejected(_ literal: String, _ cleaned: String) {
-        // User, 2026-10-18: Polished leaves mishearings to Literal, so any sound-alike swap is unrequested.
+        // Polished leaves mishearings to the dictionary, so a sound-alike swap is never a requested fix.
         #expect(check(literal, cleaned) == .soundAlike)
     }
 

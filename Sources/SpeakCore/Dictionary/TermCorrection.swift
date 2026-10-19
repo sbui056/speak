@@ -42,9 +42,7 @@ public func correctTerms(_ text: String, terms: [String], shielding: [String] = 
     let shieldSet = Set(shields.map { $0.lowercased() })
     if let regex {
         for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
-            guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
-            else { continue }
-            let term = byLength[group - 1]
+            guard let term = matchedPhrase(match, in: byLength) else { continue }
             // A term with no capital keeps the spoken casing.
             edits.append((match.range, term, !shieldSet.contains(term.lowercased()) && term.contains(where: \.isUppercase)))
         }
@@ -89,6 +87,11 @@ func termPattern(_ terms: [String]) -> (byLength: [String], regex: NSRegularExpr
         if cache.count > 4 { cache.removeLast() }
     }
     return (byLength, regex)
+}
+
+/// The phrase a `termPattern` match found: the one whose capture group took part.
+func matchedPhrase(_ match: NSTextCheckingResult, in byLength: [String]) -> String? {
+    (1..<match.numberOfRanges).first { match.range(at: $0).location != NSNotFound }.map { byLength[$0 - 1] }
 }
 
 /// One case-insensitive pattern matching any of `phrases` as whole words

@@ -137,7 +137,7 @@ public struct TermDictionary: Equatable, Sendable {
     }
 
     /// The rules every stored text follows: normalized, no control characters
-    /// or angle brackets, within C-DICT's length.
+    /// or angle brackets, within `Constants.dictTermLength`.
     private static func check(_ raw: String) -> Result<String, TermError> {
         let text = normalize(raw)
         if text.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) {

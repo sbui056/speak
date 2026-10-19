@@ -160,14 +160,12 @@ tr:last-child td { border-bottom: 0; }
 td:first-child { font-weight: 600; width: 26%; }
 td:last-child { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); width: 18%; }
 
-/* Roadmap */
-.phases { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--fg); }
+/* Version history */
+.phases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--fg); }
 .phase { padding: 16px 16px 0 0; display: grid; gap: 8px; align-content: start; }
 .phase + .phase { padding-left: 16px; border-left: 1px solid var(--line); }
 .phase .pn { font-family: var(--f-mono); font-size: 13px; color: var(--muted); }
 .phase ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14.5px; display: grid; gap: 4px; }
-.phase .gate { font-family: var(--f-mono); font-size: 12.5px; border-top: 1px dashed var(--line); padding-top: 8px; }
-.phase.daily h3::after { content: "daily driver"; font-family: var(--f-mono); font-size: 11px; font-weight: 500; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--fg); vertical-align: middle; }
 @media (max-width: 820px) {
   .phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .phase:nth-child(odd) { padding-left: 0; border-left: 0; }
@@ -183,13 +181,13 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 
 <div class="wrap">
 <header>
-  <div class="eyebrow">Architecture · version 1 · as built · October 2026</div>
+  <div class="eyebrow">Architecture · version 1 · October 2026</div>
   <div class="title-row"><h1>Speak</h1><span class="live-dot" aria-hidden="true"></span></div>
   <p class="lede">Hold a key, talk, let go. Clean text appears at your cursor in any Mac app. Speech recognition and rewriting run on your Mac, and audio never touches the disk.</p>
   <div class="stats" role="list">
     <div class="stat" role="listitem"><b>0</b><span>network calls</span></div>
     <div class="stat" role="listitem"><b>0 bytes</b><span>of audio on disk</span></div>
-    <div class="stat" role="listitem"><b>≤1.5 s</b><span>median release-to-text target</span></div>
+    <div class="stat" role="listitem"><b>0.12 s</b><span>median release-to-text (Literal)</span></div>
     <div class="stat" role="listitem"><b>$0</b><span>running cost</span></div>
   </div>
 </header>
@@ -419,39 +417,36 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
   </div>
 </section>
 
-<section id="plan" aria-labelledby="h-plan">
+<section id="versions" aria-labelledby="h-versions">
   <div class="section-head">
-    <div class="eyebrow">07 · Build plan</div>
-    <h2 id="h-plan">Phases, each ending in a hands-on check</h2>
+    <div class="eyebrow">07 · Versions</div>
+    <h2 id="h-versions">Version history</h2>
   </div>
   <div class="phases">
-    <div class="phase"><span class="pn">P0</span><h3>Skeleton</h3><ul><li>SwiftPM package, two targets</li><li>Stable self-signed signing</li><li>Bundle, test, and privacy scripts</li></ul><div class="gate">gate: icon appears, signature stable</div></div>
-    <div class="phase daily"><span class="pn">P1</span><h3>Dictation</h3><ul><li>Hotkey, mic, on-device speech</li><li>Delivery checks and paste</li><li>HUD and permission setup</li></ul><div class="gate">gate: dictate into 4 apps + a password field</div></div>
-    <div class="phase"><span class="pn">P2</span><h3>Dictionary &amp; rewrite</h3><ul><li>Personal dictionary</li><li>Concise and Polished modes</li><li>Diff preview, undo</li></ul><div class="gate">gate: name fixed, rewrite rejected</div></div>
-    <div class="phase"><span class="pn">P3</span><h3>Polish</h3><ul><li>History, launch at login</li><li>Icon, CI, README, demo GIF</li><li>Full manual test checklist</li></ul><div class="gate">gate: checklist passes, CI green</div></div>
-    <div class="phase"><span class="pn">P4</span><h3>Speed &amp; memory</h3><ul><li>Rewrite session ready at key press</li><li>Latency and memory tooling</li><li>Repo polish</li></ul><div class="gate">gate: Polished median under 0.7 s, flat memory</div></div>
-    <div class="phase"><span class="pn">P5</span><h3>Accuracy</h3><ul><li>Alternatives rescoring</li><li>Replacements, tech terms</li><li>Polished keep guard</li></ul><div class="gate">gate: more target words in a read-aloud script</div></div>
+    <div class="phase"><span class="pn">1.0.0 · 2026-10-17</span><h3>First release</h3><ul><li>Push-to-talk dictation in any app</li><li>Literal, Concise, and Polished modes</li><li>Dictionary, diff preview, undo</li><li>History, launch at login, diagnostics</li></ul></div>
+    <div class="phase"><span class="pn">1.1.0 · 2026-10-18</span><h3>Speed</h3><ul><li>Rewrite session ready at key press</li><li>Polished median 0.99 s → 0.58 s</li><li>Stricter Concise guard</li><li>Latency and memory tooling</li></ul></div>
+    <div class="phase"><span class="pn">Unreleased</span><h3>Accuracy</h3><ul><li>Alternative-reading rescoring</li><li>Replacement pairs, tech-term pack</li><li>Polished keep guard</li><li>Rewrites keep the dictation language</li></ul></div>
   </div>
 </section>
 
 <section id="built" aria-labelledby="h-built">
   <div class="section-head">
-    <div class="eyebrow">08 · As built</div>
-    <h2 id="h-built">What the implementation added</h2>
+    <div class="eyebrow">08 · Implementation</div>
+    <h2 id="h-built">Implementation notes</h2>
   </div>
   <div class="grid2">
     <div class="promise"><h3>Keys</h3><p>A pure decoder turns raw modifier events into press, release, chord, and cancel, using the right-hand device bit so Left Option never counts. The tap runs on its own thread and is rebuilt after sleep; a disabled tap re-reads the live key state.</p></div>
     <div class="promise"><h3>Timers</h3><p>Every watchdog is a deadline fixed at creation, not at first scheduling, so timeouts don't drift later under load.</p></div>
-    <div class="promise"><h3>Recognition</h3><p>The recognizer ignores contextual strings, so Speak rescores its alternative readings: a segment takes the first alternative that spells a dictionary term the top reading misheard, within a small change (for an everyday-word term, only where the recognizer was unsure). Synthetic speech: 160 → 171 of 200 target words. Released audio is drained so the last samples reach the recognizer.</p></div>
+    <div class="promise"><h3>Recognition</h3><p>The recognizer ignores contextual strings, so Speak rescores its alternative readings: a segment takes the first alternative that spells a dictionary term the top reading misheard, within a small change (for an everyday-word term, only where the recognizer was unsure). Synthetic speech: 160 → 169 of 200 target words. Released audio is drained so the last samples reach the recognizer.</p></div>
     <div class="promise"><h3>Literal step</h3><p>Tidy whitespace, capitalize, apply replacement pairs (whole words, longest first, one pass), then dictionary correction: exact phrases take the term's casing (a lowercase term keeps the spoken casing); a one-edit near-miss is fixed only if the spell checker flags the word. Optional pack of ~70 tech terms.</p></div>
     <div class="promise"><h3>Rewrite and preview</h3><p>One guarded <code>&lt;cleaned&gt;</code> block with ratio and overlap checks (Concise may drop only fillers and lead-ins), else the literal. A non-English dictation is named in the prompt so the reply stays in that language. Polished only cleans up (mishearings are the dictionary's job) behind a keep guard: numbers, days, names, acronyms, terms, unknown words and negations must survive, and a sound-alike swap falls back. Show preview: When words change (default), Always, or Never. The panel never takes focus; on a choice Speak re-activates the original app and waits up to 2 s for ⌥ to lift.</p></div>
-    <div class="promise"><h3>Speed</h3><p>At key press in a rewrite mode, the model session is built and its instructions preloaded, so release leaves only the transcript to read. Guardrails for transforming the user's own text reply ~0.1 s sooner with the same output; the speech analyzer runs at user-initiated priority. Polished: 0.99 s → 0.58 s median. Starting the rewrite on the partial transcript at release was tried and removed (it never matched).</p></div>
+    <div class="promise"><h3>Speed</h3><p>At key press in a rewrite mode, the model session is built and its instructions preloaded, so release leaves only the transcript to read. Guardrails for transforming the user's own text reply ~0.1 s sooner with the same output; the speech analyzer runs at user-initiated priority. Polished median: 0.58 s.</p></div>
     <div class="promise"><h3>Delivery rescue and undo</h3><p>A paste that hasn't finished in 3 s becomes a copy of the accepted text. Undo insert is offered for 30 s while the same app, field, and length still match, with focus read from the frontmost app.</p></div>
     <div class="promise"><h3>History and diagnostics</h3><p>Finished dictations go to a JSON-lines file (newest 50) when history is on. Release-to-result timings go to the log, and the last 20 go into Copy diagnostics with versions, permissions, and settings.</p></div>
   </div>
 </section>
 
-<footer><span>Speak · architecture v1 · as built 2026-10-18</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
+<footer><span>Speak · architecture v1 · October 2026</span><span>Native Swift 6 · macOS 26 · no third-party dependencies</span></footer>
 </div>
 
 <script>

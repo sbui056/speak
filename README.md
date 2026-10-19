@@ -39,7 +39,7 @@ Teach it names.
 
 ## Install
 
-Requirements: macOS 26 (Tahoe) on Apple Silicon, and the Swift toolchain (Xcode, or the Command Line Tools via `xcode-select --install`). Apple Intelligence is needed only for Concise and Polished.
+Requirements: macOS 26 (Tahoe) on Apple Silicon, and Swift 6.2 or later (Xcode, or the Command Line Tools via `xcode-select --install`). Apple Intelligence is needed only for Concise and Polished.
 
 There is no prebuilt app yet. Build from source:
 
@@ -50,7 +50,7 @@ scripts/make-identity.sh   # once: creates a local self-signed signing identity
 scripts/bundle.sh          # builds, signs, installs to ~/Applications/Speak.app, and launches
 ```
 
-The local signing identity stays the same across rebuilds, so macOS keeps your permission grants. To update, run `git pull && scripts/bundle.sh`.
+`make-identity.sh` adds a self-signed certificate named SpeakDev to your login keychain and trusts it for code signing only; macOS asks for your password once. Because the identity stays the same across rebuilds, macOS keeps your permission grants. To update, run `git pull && scripts/bundle.sh`.
 
 Speak asks for three permissions:
 
@@ -61,6 +61,8 @@ Speak asks for three permissions:
 | Accessibility | Pasting at your cursor, checking that a text field is focused, and Undo. |
 
 After you grant Input Monitoring, Speak relaunches once, because macOS applies that permission only to a new process.
+
+To uninstall, quit Speak, delete `~/Applications/Speak.app` and `~/Library/Application Support/Speak/`, remove Speak from Microphone, Input Monitoring, and Accessibility in System Settings → Privacy & Security, and delete the SpeakDev certificate in Keychain Access.
 
 ## Usage
 
@@ -123,9 +125,32 @@ scripts/check-privacy.sh   # no networking, no text in logs, SpeakCore stays fra
 scripts/latency.sh         # latency per mode and stage, plus memory, from Speak's logs
 scripts/soak.sh            # 100 fake dictations in a debug build; memory growth and leaks
 scripts/corpus.sh          # 55 fixed dictations through the real model; flags dropped meaning
+scripts/lab-recognizer.sh  # recognizer accuracy on synthetic speech from system voices
+scripts/accuracy.sh        # scores a dictation run against the expected sentences
+scripts/make-icon.sh       # regenerates Resources/AppIcon.icns
+scripts/make-gif.sh        # screen recording to README GIF (needs ffmpeg)
 ```
 
-The tests need no microphone, permissions, or Apple Intelligence, so they run in CI. They cover the session state machine, delivery rules, clipboard restore, undo, the rewrite guards (including prompt-injection attempts), the dictionary, and history storage.
+The tests need no microphone, permissions, or Apple Intelligence, so they run in CI. They cover the session state machine, delivery rules, clipboard restore, undo, the rewrite guards (including prompt-injection attempts), the dictionary, and history storage. `soak.sh`, `corpus.sh`, and `lab-recognizer.sh` build and run a debug binary; `corpus.sh` also needs Apple Intelligence.
+
+`SPEAK_FAKE=1 open ~/Applications/Speak.app` runs the app with canned audio and transcript but the real hotkey and delivery.
+
+### Project layout
+
+```
+Sources/SpeakCore/      Logic with no UI or system frameworks; unit-tested
+  Session/              State machine (reducer) and the controller that runs its effects
+  Rewrite/              Prompt, injection and keep guards, word diff
+  Dictionary/           Terms, replacements, rescoring, tech-term pack
+  Delivery/             Paste-safety rules, clipboard restore, undo
+  History/, Storage/    Opt-in history and file I/O
+  Ports.swift           Protocols the app target implements
+  Fakes/                Fake audio, speech, keys, model, and delivery for tests and SPEAK_FAKE
+Sources/Speak/          App shell (menu bar, HUD, preview, windows) and real adapters
+  DevTools/             Debug-only harnesses used by the soak, corpus, and lab scripts
+Tests/SpeakCoreTests/   Tests, fakes only
+scripts/                Build, test, privacy check, and measurement tools
+```
 
 ## Known limits
 

@@ -9,7 +9,7 @@ public func reduce(_ state: SessionState, _ event: SessionEvent) -> (SessionStat
 
 /// How often the hotkey is polled while listening, to catch a lost key-up
 /// within the stuck-key window.
-public let keyPollInterval: Duration = Constants.stuck / 3
+let keyPollInterval: Duration = Constants.stuck / 3
 
 struct Reducer {
     var state: SessionState

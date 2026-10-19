@@ -1,4 +1,5 @@
 import Synchronization
+@testable import SpeakCore
 
 /// Permissions the test grants and revokes by hand. Only the microphone has a
 /// system prompt; the others send the user to System Settings.

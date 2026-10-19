@@ -20,6 +20,9 @@ public final class SessionController {
     @ObservationIgnored public var terms: [String] = []
     /// Replacement pairs for Literal; their "write" sides also rescore the transcriber.
     @ObservationIgnored public var pairs: [ReplacementPair] = []
+    /// Every spelling the user wrote: terms plus replacement outputs. The
+    /// transcriber rescores toward them and the rewrite must keep them.
+    private var userSpellings: [String] { terms + pairs.map(\.write) }
     /// Language for the spell checker, as a locale identifier.
     @ObservationIgnored public var language = "en_US"
     /// Called when the preview opens or closes, for the panel that shows it.
@@ -251,8 +254,7 @@ public final class SessionController {
     /// guard. The reducer's watchdog decides when to stop waiting.
     private func rewrite(_ id: SessionID, _ literal: String, _ mode: RewriteMode) -> Task<Void, Never> {
         let rewriter = self.rewriter
-        // A replacement's output is the user's wording too: the model must keep it.
-        let terms = self.terms + pairs.map(\.write)
+        let terms = userSpellings
         let language = self.language
         // Words the spell checker doesn't know are jargon Polished must keep;
         // asked here, on the main actor, before the model runs.
@@ -292,7 +294,7 @@ public final class SessionController {
         guard let rt = runtime(id) else { return }
         let audio = self.audio
         let transcriber = self.transcriber
-        let terms = self.terms + pairs.map(\.write)
+        let terms = userSpellings
         let input = self.input
         let onAudio: @Sendable (AudioEvent) -> Void = { [weak self] event in
             switch event {

@@ -73,7 +73,7 @@ public actor Deliverer {
     }
 
     /// A recent paste can still be undone (the menu shows Undo insert).
-    public var canUndo: Bool { undo != nil }
+    var canUndo: Bool { undo != nil }
 
     /// Undo is safe only in the same app and field, with the text apparently untouched.
     public func undoIsSafe() async -> Bool {

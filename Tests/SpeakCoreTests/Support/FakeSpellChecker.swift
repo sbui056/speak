@@ -1,3 +1,4 @@
+@testable import SpeakCore
 /// Reports only the listed words as misspelled.
 public struct FakeSpellChecker: SpellChecker {
     public let misspelled: Set<String>

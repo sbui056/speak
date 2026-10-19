@@ -65,7 +65,7 @@ struct RewritePromptTests {
     }
 
     @Test func noModeIsAskedToFixMishearings() {
-        // User, 2026-10-18: the on-device model fixed 0/10; Literal's dictionary does the fixing.
+        // The on-device model fixed none of the mishearings it was given; the dictionary does that in the Literal step.
         for mode in [RewriteMode.concise, .polished] {
             #expect(!rewriteInstructions(mode).contains("Speech recognition"))
             #expect(!rewriteInstructions(mode).contains("pool request"))
@@ -173,7 +173,7 @@ struct RewriteValidationTests {
     }
 
     @Test func japaneseReplyHasRoomToFinish() {
-        // One whitespace "word" used to cap the reply at 22 tokens.
+        // Japanese has no spaces, so counting whitespace words would cap the reply far too low.
         #expect(buildRewritePrompt("会議を木曜日の三時に移動したほうがいいと思います", mode: .polished, terms: []).maxResponseTokens > 60)
     }
 

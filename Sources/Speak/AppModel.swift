@@ -294,24 +294,34 @@ final class AppModel {
 
     private func refreshModel() async {
         guard let modelStore else { return setModel(.installed) }
-        let status = await modelStore.status()
-        setModel(status)
-        guard case .downloading = status, !installing else { return }
+        // A language change during a download shows the new status now; if that
+        // one needs a download too, the running loop below starts it next.
+        guard !installing else { return setModel(await modelStore.status()) }
         installing = true
         defer { installing = false }
-        do {
-            try await modelStore.install { percent in
-                Task { @MainActor [weak self] in
-                    // Progress callbacks can land after the install finished.
-                    guard let self, model != .installed else { return }
-                    setModel(.downloading(percent: percent))
+        while true {
+            let requested = locale
+            let status = await modelStore.status()
+            setModel(status)
+            guard case .downloading = status else { return }
+            do {
+                try await modelStore.install { [requested] percent in
+                    Task { @MainActor [weak self] in
+                        // Progress callbacks can land after the install finished,
+                        // or belong to a language the user has since left.
+                        guard let self, model != .installed, locale == requested else { return }
+                        setModel(.downloading(percent: percent))
+                    }
+                }
+            } catch {
+                let ns = error as NSError
+                Log.stt.error("model install failed domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public)")
+                if locale == requested {
+                    return setModel(.unavailable(language: locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier))
                 }
             }
-            setModel(await modelStore.status())
-        } catch {
-            let ns = error as NSError
-            Log.stt.error("model install failed domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public)")
-            setModel(.unavailable(language: locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier))
+            // The user picked another language mid-install: check that one next.
+            guard locale != requested else { return setModel(await modelStore.status()) }
         }
     }
 

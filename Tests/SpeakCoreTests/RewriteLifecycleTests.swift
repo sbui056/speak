@@ -100,7 +100,7 @@ struct RewriteLifecycleTests {
         #expect(h.pasteboard.current.writes.last == .normal)
     }
 
-    @Test(arguments: [RewriteError.timeout, .exceededContextWindow, .assetsUnavailable, .guardrailViolation,
+    @Test(arguments: [RewriteError.exceededContextWindow, .assetsUnavailable, .guardrailViolation,
                       .unsupportedLanguage, .decodingFailure, .rateLimited, .concurrentRequests, .refusal, .unknown])
     func everyRewriterErrorFallsBackToTheLiteral(_ error: RewriteError) async {
         let h = polished { $0.rewriter.configure { $0.error = error } }

@@ -27,9 +27,7 @@ public func applyPairs(_ text: String, pairs: [ReplacementPair]) -> String {
     let ns = text as NSString
     let result = NSMutableString(string: text)
     for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
-        guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
-        else { continue }
-        guard var write = writes[byLength[group - 1].lowercased()] else { continue }
+        guard let heard = matchedPhrase(match, in: byLength), var write = writes[heard.lowercased()] else { continue }
         if ns.substring(with: match.range).first?.isUppercase == true, !write.contains(where: \.isUppercase),
            startsSentence(ns.substring(to: match.range.location)) {
             write = write.prefix(1).uppercased() + write.dropFirst()

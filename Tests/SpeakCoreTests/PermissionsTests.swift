@@ -60,7 +60,7 @@ struct PermissionsTests {
         ([.inputMonitoring: true], true, .installed, Messages.inputMonitoringRelaunch.text),
         ([.inputMonitoring: true, .microphone: false], false, .installed, Messages.mic.text),
         ([.inputMonitoring: true, .microphone: true], false, .downloading(percent: 42), Messages.modelDownloading(percent: 42).text),
-        ([.inputMonitoring: true, .microphone: true, .accessibility: false], false, .installed, Messages.accessibility.text),
+        ([.inputMonitoring: true, .microphone: true, .accessibility: false], false, .installed, Messages.accessibilityMissing.text),
         ([.inputMonitoring: true, .microphone: true, .accessibility: true], false, .installed, "Ready — hold Right Option"),
     ])
     func statusLine(_ permissions: [Permission: Bool], _ relaunch: Bool, _ model: SpeechModelStatus, _ expected: String) {
