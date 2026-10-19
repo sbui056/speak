@@ -185,7 +185,7 @@ public final class SessionController {
             send(.literalReady(id, makeLiteral(raw, terms: terms, pairs: pairs, spelling: spelling, language: language)))
         case .prewarmRewriter(let mode):
             let rewriter = self.rewriter
-            let instructions = rewriteInstructions(mode, terms: terms)
+            let instructions = rewriteInstructions(mode)
             Task { await rewriter.prewarm(instructions: instructions) }
         case .rewrite(let id, let literal, let mode):
             guard let rt = runtime(id) else { return }

@@ -280,7 +280,7 @@ final class AppModel {
     }
 
     private func prewarm() {
-        let instructions = rewriteInstructions(mode, terms: dictionary.terms)
+        let instructions = rewriteInstructions(mode)
         let rewriter = self.rewriter
         Task { await rewriter.prewarm(instructions: instructions) }
     }

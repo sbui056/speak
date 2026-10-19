@@ -62,6 +62,8 @@ public final class FakeRewriter: Rewriter {
     }
 
     private func transcript(in prompt: String) -> String {
-        String(prompt.dropFirst("<transcript>".count).dropLast("</transcript>".count))
+        // The dictionary's keep-line may follow the closing tag.
+        let body = prompt.dropFirst("<transcript>".count)
+        return String(body[..<(body.range(of: "</transcript>")?.lowerBound ?? body.endIndex)])
     }
 }
