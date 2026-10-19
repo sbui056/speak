@@ -53,5 +53,12 @@
   {"id": "keep-idempotent", "text": "the deploy is idempotent so you can run it twice", "keep": ["deploy", "idempotent", "twice|two|2"]},
   {"id": "keep-kubectl", "text": "run kubectl get pods and send me the output", "keep": ["kubectl", "pods", "output"]},
   {"id": "keep-name-time", "text": "the meeting with Sarah moved to two thirty", "keep": ["meeting", "Sarah", "two|2", "thirty|30"]},
-  {"id": "keep-never", "text": "we never ship on Fridays", "keep": ["never", "ship", "Fridays|Friday"]}
+  {"id": "keep-never", "text": "we never ship on Fridays", "keep": ["never", "ship", "Fridays|Friday"]},
+  {"id": "es-filler", "language": "es_ES", "text": "eh bueno creo que deberíamos mover la reunión al jueves a las tres", "keep": ["reunión", "jueves", "tres|3"]},
+  {"id": "es-list", "language": "es_ES", "text": "puedes eh puedes comprar leche y huevos de camino a casa", "keep": ["leche", "huevos", "casa"]},
+  {"id": "es-restart", "language": "es_ES", "text": "mándale el informe a María no espera mándaselo a Carlos mañana", "keep": ["informe", "Carlos", "mañana"]},
+  {"id": "es-plain", "language": "es_ES", "text": "el servidor se cayó anoche y tuvimos que reiniciarlo dos veces", "keep": ["servidor", "anoche", "dos|2"]},
+  {"id": "ja-filler", "language": "ja_JP", "text": "えーと 会議を木曜日の三時に移動したほうがいいと思います", "keep": ["会議", "木曜日", "三時|3時"]},
+  {"id": "ja-list", "language": "ja_JP", "text": "あの 帰りに牛乳と卵を買ってきてくれる", "keep": ["牛乳", "卵"]},
+  {"id": "ja-plain", "language": "ja_JP", "text": "昨日の夜サーバーが落ちて二回再起動しました", "keep": ["サーバー", "二回|2回"]}
 ]

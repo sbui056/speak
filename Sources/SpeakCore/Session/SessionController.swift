@@ -258,7 +258,7 @@ public final class SessionController {
         // asked here, on the main actor, before the model runs.
         let unknown = mode == .polished ? unknownWords(in: literal, spelling: spelling, language: language) : []
         return Task { [weak self] in
-            let prompt = buildRewritePrompt(literal, mode: mode, terms: terms)
+            let prompt = buildRewritePrompt(literal, mode: mode, terms: terms, language: language)
             var accepted: String?
             let reply = try? await rewriter.respond(to: prompt)
             if let reply {

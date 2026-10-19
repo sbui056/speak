@@ -216,6 +216,15 @@ struct RewriteLifecycleTests {
         #expect(h.controller.preview?.literal == "Ask Siobhan about Kubernetes today please")
     }
 
+    @Test func dictationLanguageReachesThePrompt() async {
+        let h = polished()
+        h.controller.language = "es_ES"
+        h.transcriber.configure { $0.text = "eh bueno creo que deberíamos mover la reunión al jueves" }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle || h.controller.preview != nil })
+        #expect(h.rewriter.prompts.first?.prompt.hasSuffix("The transcript is in Spanish. Write the cleaned text in Spanish, not English.") == true)
+    }
+
     @Test func pairsReachLiteralAndRescoring() async {
         let h = Harness()
         h.transcriber.configure { $0.text = "open a pool request for kubernetes" }

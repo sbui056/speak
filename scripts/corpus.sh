@@ -3,6 +3,8 @@
 # through the real on-device model (Concise and Polished, exactly as a session
 # would), then summarizes. Needs Apple Intelligence on. Re-run after any prompt
 # change or macOS update and compare with an earlier report.
+# A case may set "language" (e.g. "es_ES"), as a session passes it. Rejected replies
+# end with raw=<reply>.
 # Usage: scripts/corpus.sh [report-file]   (default: print only)
 set -eu
 cd "$(dirname "$0")/.."

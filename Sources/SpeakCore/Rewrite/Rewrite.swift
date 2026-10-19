@@ -140,9 +140,14 @@ public let transcriptPrefix = "<transcript>"
 /// Builds the prompt with the injection guard: angle brackets are stripped so
 /// dictated text can't close the transcript tag or forge a result block. The
 /// dictionary terms the transcript uses follow it, so the instructions stay fixed.
-public func buildRewritePrompt(_ literal: String, mode: RewriteMode, terms: [String]) -> RewritePrompt {
+public func buildRewritePrompt(_ literal: String, mode: RewriteMode, terms: [String],
+                               language: String = "en") -> RewritePrompt {
     let transcript = stripAngleBrackets(literal)
     var prompt = "\(transcriptPrefix)\(transcript)</transcript>"
+    let code = Locale(identifier: language).language.languageCode?.identifier ?? language
+    if code != "en", let name = Locale(identifier: "en").localizedString(forLanguageCode: code) {
+        prompt += "\n\nThe transcript is in \(name). Write the cleaned text in \(name), not English."
+    }
     let used = usedTerms(terms.map(stripAngleBrackets), in: transcript)
     if !used.isEmpty { prompt += "\n\nKeep these words exactly: \(used.joined(separator: ", "))." }
     return RewritePrompt(instructions: rewriteInstructions(mode), prompt: prompt,
@@ -278,11 +283,28 @@ public func wordCount(_ text: String) -> Int {
     comparableWords(text).count
 }
 
-/// Lowercased words with punctuation removed ("Don't," → "dont").
+/// Lowercased words with punctuation removed ("Don't," → "dont"). Japanese and
+/// Chinese don't put spaces between words, so each of their characters counts as one.
 func comparableWords(_ text: String) -> [String] {
-    text.split(whereSeparator: \.isWhitespace)
-        .map { String($0.lowercased().filter { $0.isLetter || $0.isNumber }) }
-        .filter { !$0.isEmpty }
+    text.split(whereSeparator: \.isWhitespace).flatMap { token -> [String] in
+        var words: [String] = [], run = ""
+        for character in token.lowercased() where character.isLetter || character.isNumber {
+            if isUnspaced(character) {
+                if !run.isEmpty { words.append(run); run = "" }
+                words.append(String(character))
+            } else {
+                run.append(character)
+            }
+        }
+        return run.isEmpty ? words : words + [run]
+    }
+}
+
+/// Hiragana, katakana (full and half width), and CJK ideographs.
+private func isUnspaced(_ character: Character) -> Bool {
+    guard let value = character.unicodeScalars.first?.value else { return false }
+    return (0x3040...0x30FF).contains(value) || (0x3400...0x4DBF).contains(value)
+        || (0x4E00...0x9FFF).contains(value) || (0xF900...0xFAFF).contains(value) || (0xFF66...0xFF9F).contains(value)
 }
 
 private extension String {
