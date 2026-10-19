@@ -67,13 +67,4 @@ public enum Constants {
     public static let pairsMax = 100
     /// History cap when history is on.
     public static let historyMax = 50
-    /// Silence fed to the recognizer after the mic closes, so the last word is
-    /// finished; generated, never mic audio.
-    public static let tailPad: Duration = .milliseconds(300)
-}
-
-/// Frames of `Constants.tailPad` at `sampleRate`.
-public func tailPadFrames(sampleRate: Double) -> Int {
-    let (seconds, attoseconds) = Constants.tailPad.components
-    return Int((sampleRate * (Double(seconds) + Double(attoseconds) / 1e18)).rounded())
 }
