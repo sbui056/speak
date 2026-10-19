@@ -161,7 +161,7 @@ td:first-child { font-weight: 600; width: 26%; }
 td:last-child { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); width: 18%; }
 
 /* Roadmap */
-.phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--fg); }
+.phases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--fg); }
 .phase { padding: 16px 16px 0 0; display: grid; gap: 8px; align-content: start; }
 .phase + .phase { padding-left: 16px; border-left: 1px solid var(--line); }
 .phase .pn { font-family: var(--f-mono); font-size: 13px; color: var(--muted); }
@@ -170,7 +170,7 @@ td:last-child { font-family: var(--f-mono); font-size: 12.5px; color: var(--mute
 .phase.daily h3::after { content: "daily driver"; font-family: var(--f-mono); font-size: 11px; font-weight: 500; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--fg); vertical-align: middle; }
 @media (max-width: 820px) {
   .phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .phase:nth-child(3) { padding-left: 0; border-left: 0; }
+  .phase:nth-child(odd) { padding-left: 0; border-left: 0; }
   .phase:nth-child(n+3) { margin-top: 20px; }
 }
 @media (max-width: 480px) { .phases { grid-template-columns: minmax(0, 1fr); } .phase + .phase { padding-left: 0; border-left: 0; margin-top: 20px; } }
@@ -412,6 +412,7 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
         <tr><td>Rewrite answers or obeys the dictation</td><td>Angle brackets stripped, a single tagged output, and length and word-overlap checks. On any doubt, fall back to literal.</td><td>RewriteTests injection fixtures</td></tr>
         <tr><td>On-device model errors or slow first load</td><td>Prewarm at launch; at key press in a rewrite mode, prepare the session the rewrite will use. Every model error maps to a literal fallback with a short note.</td><td>RewriteLifecycleTests</td></tr>
         <tr><td>Dictionary “fixes” real words</td><td>Fuzzy matching applies only to words the spellchecker flags as misspelled.</td><td>Dictionary tests</td></tr>
+        <tr><td>Polished “fixes” a fact</td><td>A keep guard aligns the reply with the literal: numbers, days, names, acronyms, dictionary terms, unknown words and negations must survive; any other change must be grammar or a sound-alike, else the literal.</td><td>KeepGuardTests · rewrite corpus</td></tr>
       </tbody>
     </table>
   </div>
@@ -420,13 +421,14 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
 <section id="plan" aria-labelledby="h-plan">
   <div class="section-head">
     <div class="eyebrow">07 · Build plan</div>
-    <h2 id="h-plan">Four phases, each ending in a hands-on check</h2>
+    <h2 id="h-plan">Phases, each ending in a hands-on check</h2>
   </div>
   <div class="phases">
     <div class="phase"><span class="pn">P0</span><h3>Skeleton</h3><ul><li>SwiftPM package, two targets</li><li>Stable self-signed signing</li><li>Bundle, test, and privacy scripts</li></ul><div class="gate">gate: icon appears, signature stable</div></div>
     <div class="phase daily"><span class="pn">P1</span><h3>Dictation</h3><ul><li>Hotkey, mic, on-device speech</li><li>Delivery checks and paste</li><li>HUD and permission setup</li></ul><div class="gate">gate: dictate into 4 apps + a password field</div></div>
     <div class="phase"><span class="pn">P2</span><h3>Dictionary &amp; rewrite</h3><ul><li>Personal dictionary</li><li>Concise and Polished modes</li><li>Diff preview, undo</li></ul><div class="gate">gate: name fixed, rewrite rejected</div></div>
     <div class="phase"><span class="pn">P3</span><h3>Polish</h3><ul><li>History, launch at login</li><li>Icon, CI, README, demo GIF</li><li>Full manual test checklist</li></ul><div class="gate">gate: checklist passes, CI green</div></div>
+    <div class="phase"><span class="pn">P5</span><h3>Accuracy</h3><ul><li>Alternatives rescoring</li><li>Replacements, tech terms</li><li>Polished keep guard</li></ul><div class="gate">gate: more target words in a read-aloud script</div></div>
   </div>
 </section>
 
@@ -438,8 +440,9 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
   <div class="grid2">
     <div class="promise"><h3>Keys</h3><p>A pure decoder turns raw modifier events into press, release, chord, and cancel, using the right-hand device bit so Left Option never counts. The tap runs on its own thread and is rebuilt after sleep; a disabled tap re-reads the live key state.</p></div>
     <div class="promise"><h3>Timers</h3><p>Every watchdog is a deadline fixed at creation, not at first scheduling, so timeouts don't drift later under load.</p></div>
-    <div class="promise"><h3>Literal step</h3><p>Tidy whitespace, capitalize, then dictionary correction: exact phrases take the term's casing; a one-edit near-miss is fixed only if the spell checker flags the word.</p></div>
-    <div class="promise"><h3>Rewrite and preview</h3><p>One guarded <code>&lt;cleaned&gt;</code> block with ratio and overlap checks (Concise may drop only fillers and lead-ins), else the literal. Show preview: When words change (default), Always, or Never. The panel never takes focus; on a choice Speak re-activates the original app and waits up to 2 s for ⌥ to lift.</p></div>
+    <div class="promise"><h3>Recognition</h3><p>The recognizer ignores contextual strings, so Speak rescores its alternative readings: a segment takes the first alternative that spells a dictionary term the top reading misheard, within a small change. Synthetic speech: 160 → 171 of 200 target words. Released audio is drained and padded with 300 ms of silence.</p></div>
+    <div class="promise"><h3>Literal step</h3><p>Tidy whitespace, capitalize, apply replacement pairs (whole words, longest first, one pass), then dictionary correction: exact phrases take the term's casing (a lowercase term keeps the spoken casing); a one-edit near-miss is fixed only if the spell checker flags the word. Optional pack of ~70 tech terms.</p></div>
+    <div class="promise"><h3>Rewrite and preview</h3><p>One guarded <code>&lt;cleaned&gt;</code> block with ratio and overlap checks (Concise may drop only fillers and lead-ins), else the literal. Polished may fix sound-alike mishearings behind a keep guard: numbers, days, names, acronyms, terms, unknown words and negations must survive. Show preview: When words change (default), Always, or Never. The panel never takes focus; on a choice Speak re-activates the original app and waits up to 2 s for ⌥ to lift.</p></div>
     <div class="promise"><h3>Speed</h3><p>At key press in a rewrite mode, the model session is built and its instructions preloaded, so release leaves only the transcript to read. Guardrails for transforming the user's own text reply ~0.1 s sooner with the same output; the speech analyzer runs at user-initiated priority. Polished: 0.99 s → 0.58 s median. Starting the rewrite on the partial transcript at release was tried and removed (it never matched).</p></div>
     <div class="promise"><h3>Delivery rescue and undo</h3><p>A paste that hasn't finished in 3 s becomes a copy of the accepted text. Undo insert is offered for 30 s while the same app, field, and length still match, with focus read from the frontmost app.</p></div>
     <div class="promise"><h3>History and diagnostics</h3><p>Finished dictations go to a JSON-lines file (newest 50) when history is on. Release-to-result timings go to the log, and the last 20 go into Copy diagnostics with versions, permissions, and settings.</p></div>

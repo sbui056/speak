@@ -16,7 +16,8 @@ Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all 
 - **On-device speech recognition** with Apple's SpeechAnalyzer, with a live preview of the words while you talk.
 - **Three modes.** *Literal* types exactly what you said, with spacing and the first capital tidied and dictionary spellings applied. *Concise* and *Polished* rewrite it with Apple Intelligence's on-device model.
 - **No surprise rewrites.** When a rewrite changes your words, a preview shows the difference first. Choose Insert, Insert literal, Edit, Copy, or Cancel. You can set **Show preview** to *Always*, *When words change* (the default), or *Never*.
-- **Dictionary** for names and jargon ("Siobhan", "Kubernetes"). Speak passes the terms to the recognizer and fixes near-misses.
+- **Dictionary** for names and jargon ("Siobhan", "Kubernetes"). When the recognizer offers another reading that spells one of your terms, Speak picks it; it also fixes near-misses. **Replacements** fix what it keeps mishearing ("pool request" → "pull request"), and one click adds about 70 common tech terms.
+- **Polished keeps your facts.** A rewrite that changes a number, day, name, acronym, dictionary term, or a "not" falls back to what you said.
 - **Undo insert** for 30 seconds after a paste, and **Paste / Copy last transcript** from the menu bar.
 - **Safe fallbacks.** If Speak can't paste (no text field, secure input, keys still held), it copies the text and tells you why.
 - **Optional history** of your last 50 dictations, as text only. It's off by default.
