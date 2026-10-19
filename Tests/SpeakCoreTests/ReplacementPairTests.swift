@@ -175,3 +175,65 @@ struct DictionaryFileVersionTests {
         #expect(files.loadDictionary().value.pairs == [ReplacementPair(heard: "pool request", write: "pull request")])
     }
 }
+
+struct TechTermsTests {
+    @Test func everyPackEntryIsValidAndUnique() {
+        var d = TermDictionary()
+        for term in TechTerms.terms { #expect(throws: Never.self) { try d.add(term) } }
+        for p in TechTerms.pairs { #expect(throws: Never.self) { try d.addPair(heard: p.heard, write: p.write) } }
+        #expect((60...80).contains(TechTerms.terms.count))
+    }
+
+    @Test func packNeverRewritesEverydayPhrases() {
+        let text = "I'll really try to keep the kitchen clean."
+        #expect(applyPairs(text, pairs: TechTerms.pairs) == text)
+    }
+
+    @Test func packPairsHearAtLeastTwoWords() {
+        for p in TechTerms.pairs { #expect(p.heard.split(separator: " ").count >= 2, "\(p.heard)") }
+    }
+
+    @Test func packFillsUpToTheLimitAndCountsTheRest() throws {
+        var d = TermDictionary()
+        for i in 0..<190 { try d.add("own term \(i)") }
+        let result = d.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+        #expect(d.terms.count == Constants.dictMaxEntries)
+        #expect(result.added == 10 + TechTerms.pairs.count)
+        #expect(result.skipped == TechTerms.terms.count - 10)
+    }
+
+    @Test func addingThePackTwiceAddsNothing() {
+        var d = TermDictionary()
+        _ = d.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+        let again = d.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+        #expect(again.added == 0)
+        #expect(again.skipped == TechTerms.terms.count + TechTerms.pairs.count)
+    }
+
+    @Test func removeKeepsOwnEntriesButAlsoRemovesOwnCopiesOfPackTerms() throws {
+        // Accepted trade-off: a pack term the user had added before is removed too.
+        var d = TermDictionary()
+        try d.add("Siobhan")
+        try d.add("Kubernetes")
+        try d.addPair(heard: "jason", write: "json")
+        _ = d.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+        let removed = d.removePack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+        #expect(d.terms == ["Siobhan"])
+        #expect(d.pairs == [ReplacementPair(heard: "jason", write: "json")])
+        #expect(removed == TechTerms.terms.count + TechTerms.pairs.count)
+    }
+
+    @MainActor @Test func modelAddsAndRemovesThePackWithOneAnnouncementEach() {
+        let files = tempFiles()
+        defer { try? FileManager.default.removeItem(at: files.directory) }
+        let model = DictionaryModel(files: files)
+        var announced = 0
+        model.onChange = { _ in announced += 1 }
+        let result = model.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+        #expect(result.added == TechTerms.terms.count + TechTerms.pairs.count)
+        #expect(files.loadDictionary().value.terms.count == TechTerms.terms.count)
+        #expect(model.removePack(terms: TechTerms.terms, pairs: TechTerms.pairs) == result.added)
+        #expect(announced == 2)
+        #expect(files.loadDictionary().value.terms.isEmpty)
+    }
+}

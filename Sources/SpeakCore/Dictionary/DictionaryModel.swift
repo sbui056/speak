@@ -53,6 +53,18 @@ public final class DictionaryModel {
         changed()
     }
 
+    public func addPack(terms: [String], pairs: [ReplacementPair]) -> (added: Int, skipped: Int) {
+        let result = dictionary.addPack(terms: terms, pairs: pairs)
+        changed()
+        return result
+    }
+
+    public func removePack(terms: [String], pairs: [ReplacementPair]) -> Int {
+        let removed = dictionary.removePack(terms: terms, pairs: pairs)
+        changed()
+        return removed
+    }
+
     private func changed() {
         do {
             try files.saveDictionary(dictionary)

@@ -11,17 +11,23 @@ import SpeakCore
 struct RecognizerLab {
     static let voices = ["Samantha", "Daniel", "Karen", "Reed (English (US))"]
     static let rates = [170, 230]
-    static let terms = ["pull request", "cache", "retry", "CI", "main", "created at", "meeting notes", "action items"]
+    static let labTerms = ["pull request", "cache", "retry", "CI", "main", "created at", "meeting notes", "action items"]
 
     let sentences: [String]
     /// `SPEAK_LAB_TRIM=1`: cut each file right after the last sound, like a key
     /// released the moment the last word ends.
     let trim: Bool
+    /// `SPEAK_LAB_PACK=1`: the dictionary is the tech-term pack instead of the lab terms.
+    let terms: [String]
+    let pairs: [ReplacementPair]
 
     init?(environment: [String: String]) {
         guard let path = environment["SPEAK_LAB"], let text = try? String(contentsOfFile: path, encoding: .utf8)
         else { return nil }
         trim = environment["SPEAK_LAB_TRIM"] == "1"
+        let pack = environment["SPEAK_LAB_PACK"] == "1"
+        terms = pack ? TechTerms.terms : Self.labTerms
+        pairs = pack ? TechTerms.pairs : []
         // Same line format as scripts/accuracy.py: # comments, CONTROL: prefix, [[target]] marks.
         sentences = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
@@ -42,12 +48,13 @@ struct RecognizerLab {
                 for rate in Self.rates {
                     let raw: String
                     do {
-                        raw = try await Self.transcribe(sentence, voice: voice, rate: rate, format: format, trim: trim, transcriber)
+                        raw = try await Self.transcribe(sentence, voice: voice, rate: rate, format: format, trim: trim,
+                                                       terms: terms + pairs.map(\.write), transcriber)
                     } catch {
                         print("lab: \(voice) \(rate) \(index + 1) failed: \(error)")
                         continue
                     }
-                    let text = makeLiteral(raw, terms: Self.terms, pairs: [], spelling: spelling, language: "en")
+                    let text = makeLiteral(raw, terms: terms, pairs: pairs, spelling: spelling, language: "en")
                     print("\(voice)\t\(rate)\t\(index + 1)\t\(text)")
                     fflush(stdout)
                 }
@@ -56,7 +63,7 @@ struct RecognizerLab {
     }
 
     private static func transcribe(_ sentence: String, voice: String, rate: Int, format: AVAudioFormat,
-                                   trim: Bool, _ transcriber: SpeechAnalyzerTranscriber) async throws -> String {
+                                   trim: Bool, terms: [String], _ transcriber: SpeechAnalyzerTranscriber) async throws -> String {
         let wav = FileManager.default.temporaryDirectory.appendingPathComponent("speak-lab-\(UUID().uuidString).wav")
         defer { try? FileManager.default.removeItem(at: wav) }
         let say = Process()

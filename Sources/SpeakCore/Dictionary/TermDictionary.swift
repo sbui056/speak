@@ -105,6 +105,24 @@ public struct TermDictionary: Equatable, Sendable {
         pairs.remove(at: index)
     }
 
+    /// Adds every pack entry that passes validation and fits; duplicates and
+    /// entries past a limit count as skipped.
+    public mutating func addPack(terms packTerms: [String], pairs packPairs: [ReplacementPair]) -> (added: Int, skipped: Int) {
+        var added = 0
+        for term in packTerms where (try? add(term)) != nil { added += 1 }
+        for pair in packPairs where (try? addPair(heard: pair.heard, write: pair.write)) != nil { added += 1 }
+        return (added, packTerms.count + packPairs.count - added)
+    }
+
+    /// Removes the entries equal to pack entries, including ones the user had
+    /// typed in themselves, and returns how many went.
+    public mutating func removePack(terms packTerms: [String], pairs packPairs: [ReplacementPair]) -> Int {
+        let before = terms.count + pairs.count
+        terms.removeAll { packTerms.contains($0) }
+        pairs.removeAll { packPairs.contains($0) }
+        return before - terms.count - pairs.count
+    }
+
     /// The rules every stored text follows: normalized, no control characters
     /// or angle brackets, within C-DICT's length.
     private static func check(_ raw: String) -> Result<String, TermError> {
