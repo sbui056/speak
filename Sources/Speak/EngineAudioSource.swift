@@ -98,9 +98,10 @@ final class EngineAudioSource: AudioSource, @unchecked Sendable {
 /// What the real-time tap touches. Counters and levels are atomics so the audio
 /// thread never takes a lock.
 private final class TapState: Sendable {
-    // The converter isn't thread-safe, but it's only used from the tap
-    // callback, which AVAudioEngine calls serially on one thread.
-    let converter: AVAudioConverter
+    // The converter isn't thread-safe: the tap callback (serial, not the
+    // real-time I/O thread) and the final drain take turns through `useConverter`.
+    private let converter: AVAudioConverter
+    private let converterClosed = Mutex<Bool>(false)
     let output: AVAudioFormat
     let continuation: AsyncStream<AudioFrames>.Continuation
     let yielded = Atomic<Int>(0)
@@ -118,17 +119,28 @@ private final class TapState: Sendable {
         self.continuation = continuation
     }
 
+    /// Runs `body` with the converter unless the final drain already ran.
+    func useConverter(closing: Bool = false, _ body: (AVAudioConverter) -> Void) {
+        converterClosed.withLock { closed in
+            guard !closed else { return }
+            if closing { closed = true }
+            body(converter)
+        }
+    }
+
     var rms: Float { Float(bitPattern: rmsBits.load(ordering: .relaxed)) }
     var peakDBFS: Double { Double(bitPattern: peakBits.load(ordering: .relaxed)) }
 
     func send(_ converted: AVAudioPCMBuffer) {
         let frames = Int(converted.frameLength)
         // Handed off and never referenced again here.
-        if case .dropped = continuation.yield(AudioFrames(AnalyzerInputBox(converted))) {
-            dropped.add(1, ordering: .relaxed)
-        } else {
+        switch continuation.yield(AudioFrames(AnalyzerInputBox(converted))) {
+        case .enqueued:
             yielded.add(1, ordering: .relaxed)
             capturedFrames.add(frames, ordering: .relaxed)
+        case .dropped: dropped.add(1, ordering: .relaxed)
+        case .terminated: break
+        @unknown default: break
         }
     }
 
@@ -151,29 +163,36 @@ private func installConvertingTap(on input: AVAudioInputNode, format native: AVA
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 16
         guard let converted = AVAudioPCMBuffer(pcmFormat: state.output, frameCapacity: capacity) else { return }
         nonisolated(unsafe) var fed = false
-        var error: NSError?
-        state.converter.convert(to: converted, error: &error) { _, status in
-            if fed { status.pointee = .noDataNow; return nil }
-            fed = true
-            status.pointee = .haveData
-            return buffer
+        // Converted and sent under the lock, so a callback that races the drain
+        // either finishes first or does nothing.
+        state.useConverter { converter in
+            var error: NSError?
+            converter.convert(to: converted, error: &error) { _, status in
+                if fed { status.pointee = .noDataNow; return nil }
+                fed = true
+                status.pointee = .haveData
+                return buffer
+            }
+            guard error == nil, converted.frameLength > 0 else { return }
+            state.send(converted)
         }
-        guard error == nil, converted.frameLength > 0 else { return }
-        state.send(converted)
     }
 }
 
 /// Flushes the samples the sample-rate converter keeps back for its filter.
-/// Only after the tap is removed, so the converter is never used from two threads.
+/// Runs once, after the tap is removed; a tap callback still in flight after
+/// this finds the converter closed.
 private func drainConverter(_ state: TapState) {
     guard let converted = AVAudioPCMBuffer(pcmFormat: state.output, frameCapacity: 4096) else { return }
-    var error: NSError?
-    state.converter.convert(to: converted, error: &error) { _, status in
-        status.pointee = .endOfStream
-        return nil
+    state.useConverter(closing: true) { converter in
+        var error: NSError?
+        converter.convert(to: converted, error: &error) { _, status in
+            status.pointee = .endOfStream
+            return nil
+        }
+        guard error == nil, converted.frameLength > 0 else { return }
+        state.send(converted)
     }
-    guard error == nil, converted.frameLength > 0 else { return }
-    state.send(converted)
 }
 
 /// Peak and RMS of the first channel, for the silence check and the HUD meter.

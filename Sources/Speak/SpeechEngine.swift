@@ -46,7 +46,14 @@ final class SpeechAnalyzerTranscriber: Transcriber {
         Log.stt.info("analyzer prepared in \(ContinuousClock.now - started, privacy: .public)")
 
         let transcript = Transcript()
-        let (input, feeder) = analyzerInput(frames, format: format, onEvent: onEvent)
+        let (padded, feeder) = analyzerInput(frames, format: format)
+        // `.active` means the analyzer took mic audio (the C-STT-START watchdog
+        // waits on it), so it fires as the analyzer reads, not as the mic delivers.
+        let sawAudio = Atomic<Bool>(false)
+        let input = padded.map { @Sendable item -> AnalyzerInput in
+            if item.fromMic, !sawAudio.exchange(true, ordering: .relaxed) { onEvent(.active) }
+            return item.input
+        }
         let results = Task {
             for try await result in module.results {
                 // Converted here, off the main actor.
@@ -96,19 +103,16 @@ private final class AnalyzerSession: TranscriberSession {
 /// The mic audio for the analyzer, then C-TAILPAD of generated silence once the
 /// mic closes, so a word cut off at release still gets finished. Must stay
 /// nonisolated: the task it starts runs off the main actor.
-private func analyzerInput(_ frames: AsyncStream<AudioFrames>, format: AVAudioFormat?,
-                           onEvent: @escaping @Sendable (TranscriberEvent) -> Void)
-    -> (AsyncStream<AnalyzerInput>, Task<Void, Never>) {
-    let (input, continuation) = AsyncStream<AnalyzerInput>.makeStream()
+private func analyzerInput(_ frames: AsyncStream<AudioFrames>, format: AVAudioFormat?)
+    -> (AsyncStream<(input: AnalyzerInput, fromMic: Bool)>, Task<Void, Never>) {
+    let (input, continuation) = AsyncStream<(input: AnalyzerInput, fromMic: Bool)>.makeStream()
     let feeder = Task.detached(priority: .userInitiated) {
-        var sawAudio = false
         for await frames in frames {
             guard let box = frames.payload as? AnalyzerInputBox else { continue }
-            if !sawAudio { sawAudio = true; onEvent(.active) }
-            continuation.yield(AnalyzerInput(buffer: box.buffer))
+            continuation.yield((AnalyzerInput(buffer: box.buffer), true))
         }
         if !Task.isCancelled, let format, let silence = silence(format, frames: tailPadFrames(sampleRate: format.sampleRate)) {
-            continuation.yield(AnalyzerInput(buffer: silence))
+            continuation.yield((AnalyzerInput(buffer: silence), false))
         }
         continuation.finish()
     }
