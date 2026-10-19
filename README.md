@@ -108,7 +108,7 @@ scripts/test.sh            # the SpeakCore suite, with fakes for audio, speech, 
 scripts/check-privacy.sh   # no networking, no text in public logs, SpeakCore stays framework-free
 scripts/soak.sh            # 100 fake dictations in a debug build, then footprint growth and leaks
 scripts/latency.sh         # latency per mode and per stage, plus memory, from Speak's own logs
-scripts/corpus.sh          # 30 fixed dictations through the real model; flags dropped meaning
+scripts/corpus.sh          # 55 fixed dictations (incl. Spanish, Japanese) through the real model; flags dropped meaning
 ```
 
 The tests cover the session state machine, delivery rules, clipboard restore, undo, the rewrite guard (including prompt-injection attempts), the dictionary, and history storage. They need no microphone, permissions, or Apple Intelligence, so they run on CI.
