@@ -11,14 +11,6 @@ public enum DiffSegment: Equatable, Sendable {
 /// or punctuation change shows as a replacement.
 public func wordDiff(from old: String, to new: String) -> [DiffSegment] {
     let a = tokens(old), b = tokens(new)
-    // lcs[i][j] = common subsequence length of a[i...] and b[j...].
-    var lcs = Array(repeating: Array(repeating: 0, count: b.count + 1), count: a.count + 1)
-    for i in stride(from: a.count - 1, through: 0, by: -1) {
-        for j in stride(from: b.count - 1, through: 0, by: -1) {
-            lcs[i][j] = a[i].word == b[j].word ? lcs[i + 1][j + 1] + 1 : max(lcs[i + 1][j], lcs[i][j + 1])
-        }
-    }
-
     var out: [DiffSegment] = []
     func append(_ segment: DiffSegment) {
         switch (out.last, segment) {
@@ -28,18 +20,46 @@ public func wordDiff(from old: String, to new: String) -> [DiffSegment] {
         default: out.append(segment)
         }
     }
-    var i = 0, j = 0
-    while i < a.count || j < b.count {
-        if i < a.count, j < b.count, a[i].word == b[j].word {
-            append(.same(b[j].text)); i += 1; j += 1
-        } else if i < a.count, j == b.count || lcs[i + 1][j] >= lcs[i][j + 1] {
-            // On a tie, the deletion goes first, so a replacement reads "old → new".
-            append(.deleted(a[i].text)); i += 1
-        } else {
-            append(.inserted(b[j].text)); j += 1
+    for op in alignWords(a.map(\.word), b.map(\.word)) {
+        switch op {
+        case .same(_, let j): append(.same(b[j].text))
+        case .delete(let i): append(.deleted(a[i].text))
+        case .insert(let j): append(.inserted(b[j].text))
         }
     }
     return out
+}
+
+/// One step of a word alignment: a word kept (index in each list), dropped
+/// from the first list, or added from the second.
+public enum AlignOp: Equatable, Sendable {
+    case same(Int, Int)
+    case delete(Int)
+    case insert(Int)
+}
+
+/// Aligns two word lists by their longest common subsequence. On a tie the
+/// deletion goes first, so a replacement reads "old → new".
+public func alignWords<Word: Equatable>(_ a: [Word], _ b: [Word]) -> [AlignOp] {
+    // lcs[i][j] = common subsequence length of a[i...] and b[j...].
+    var lcs = Array(repeating: Array(repeating: 0, count: b.count + 1), count: a.count + 1)
+    for i in stride(from: a.count - 1, through: 0, by: -1) {
+        for j in stride(from: b.count - 1, through: 0, by: -1) {
+            lcs[i][j] = a[i] == b[j] ? lcs[i + 1][j + 1] + 1 : max(lcs[i + 1][j], lcs[i][j + 1])
+        }
+    }
+    var ops: [AlignOp] = []
+    var i = 0, j = 0
+    while i < a.count || j < b.count {
+        if i < a.count, j < b.count, a[i] == b[j] {
+            ops.append(.same(i, j)); i += 1; j += 1
+        } else if i < a.count, j == b.count || lcs[i + 1][j] >= lcs[i][j + 1] {
+            ops.append(.delete(i)); i += 1
+        } else {
+            ops.append(.insert(j)); j += 1
+        }
+    }
+    return ops
 }
 
 private struct Token {

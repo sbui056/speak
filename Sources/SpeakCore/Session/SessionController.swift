@@ -315,7 +315,7 @@ public final class SessionController {
         rt.transcriber = Task {
             guard let frames = await opened.value else { return nil }
             do {
-                return try await transcriber.start(frames: frames, contextualStrings: terms, onEvent: onTranscript)
+                return try await transcriber.start(frames: frames, terms: terms, onEvent: onTranscript)
             } catch {
                 input.yield(.transcriberFailed(id))
                 return nil

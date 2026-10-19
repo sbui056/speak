@@ -76,9 +76,9 @@ public enum TranscriberEvent: Equatable, Sendable {
 }
 
 public protocol Transcriber: Sendable {
-    /// Creates a fresh single-use session reading `frames`. `contextualStrings`
-    /// are words the recognizer should expect (the user's dictionary).
-    func start(frames: AsyncStream<AudioFrames>, contextualStrings: [String],
+    /// Creates a fresh single-use session reading `frames`. `terms` (the user's
+    /// dictionary) are used to rescore the recognizer's alternatives.
+    func start(frames: AsyncStream<AudioFrames>, terms: [String],
                onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession
 }
 

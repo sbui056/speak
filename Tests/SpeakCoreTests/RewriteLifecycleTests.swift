@@ -181,7 +181,7 @@ struct RewriteLifecycleTests {
         h.controller.send(.rewriteSettings(mode: .polished, preview: .whenChanged))
         await h.hold(for: .milliseconds(1500))
         #expect(await eventually { h.controller.preview != nil })
-        #expect(h.transcriber.contexts == [["Siobhan", "Kubernetes"]])
+        #expect(h.transcriber.terms == [["Siobhan", "Kubernetes"]])
         let prompt = h.rewriter.prompts.first
         // Only the transcript and the dictionary terms go to the model.
         #expect(prompt == buildRewritePrompt("Ask Siobhan about Kubernetes today please", mode: .polished,

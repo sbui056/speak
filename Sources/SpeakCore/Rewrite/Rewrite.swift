@@ -222,7 +222,7 @@ public func wordCount(_ text: String) -> Int {
 }
 
 /// Lowercased words with punctuation removed ("Don't," → "dont").
-private func comparableWords(_ text: String) -> [String] {
+func comparableWords(_ text: String) -> [String] {
     text.split(whereSeparator: \.isWhitespace)
         .map { String($0.lowercased().filter { $0.isLetter || $0.isNumber }) }
         .filter { !$0.isEmpty }

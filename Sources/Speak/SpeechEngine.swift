@@ -19,8 +19,10 @@ final class SpeechAnalyzerTranscriber: Transcriber {
     fileprivate var locale: Locale { localeSetting.withLock { $0 } }
 
     fileprivate func makeModule() -> SpeechTranscriber {
-        SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults],
-                          attributeOptions: [])
+        // Alternatives cost nothing measurable and let dictionary terms pick
+        // between readings (`rescore`); the recognizer ignores contextual strings.
+        SpeechTranscriber(locale: locale, transcriptionOptions: [],
+                          reportingOptions: [.volatileResults, .alternativeTranscriptions], attributeOptions: [])
     }
 
     /// The audio format the analyzer wants; the audio source converts to it.
@@ -28,24 +30,18 @@ final class SpeechAnalyzerTranscriber: Transcriber {
         await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [makeModule()])
     }
 
-    func start(frames: AsyncStream<AudioFrames>, contextualStrings: [String],
+    func start(frames: AsyncStream<AudioFrames>, terms: [String],
                onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession {
         let module = makeModule()
         // The user is waiting on the result; lingering keeps the model loaded
         // between dictations close together.
         let analyzer = SpeechAnalyzer(modules: [module], options: .init(priority: .userInitiated, modelRetention: .lingering))
-        if !contextualStrings.isEmpty {
-            // Biases recognition toward the user's names and terms.
-            let context = AnalysisContext()
-            context.contextualStrings[.general] = contextualStrings
-            try await analyzer.setContext(context)
-        }
         let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module])
         let started = ContinuousClock.now
         try await analyzer.prepareToAnalyze(in: format)
         Log.stt.info("analyzer prepared in \(ContinuousClock.now - started, privacy: .public)")
 
-        let transcript = Transcript()
+        let transcript = Transcript(terms: terms)
         let (padded, feeder) = analyzerInput(frames, format: format)
         // `.active` means the analyzer took mic audio (the C-STT-START watchdog
         // waits on it), so it fires as the analyzer reads, not as the mic delivers.
@@ -58,7 +54,8 @@ final class SpeechAnalyzerTranscriber: Transcriber {
             for try await result in module.results {
                 // Converted here, off the main actor.
                 let text = String(result.text.characters)
-                onEvent(.partial(transcript.add(text, isFinal: result.isFinal)))
+                let alternatives = result.isFinal ? result.alternatives.dropFirst().map { String($0.characters) } : []
+                onEvent(.partial(transcript.add(text, alternatives: alternatives, isFinal: result.isFinal)))
             }
         }
         do {
@@ -132,30 +129,33 @@ private func silence(_ format: AVAudioFormat, frames: Int) -> AVAudioPCMBuffer? 
 /// Finished segments arrive while the user is still talking; the volatile tail
 /// is everything after them, revised as recognition goes.
 private final class Transcript: Sendable {
-    private let state = Mutex<(finals: String, volatile: String)>(("", ""))
+    private let terms: [String]
+    private let state = Mutex<(finals: [RecognizedSegment], text: String, volatile: String)>(([], "", ""))
 
-    /// Records a result and returns everything recognized so far.
-    func add(_ text: String, isFinal: Bool) -> String {
+    init(terms: [String]) {
+        self.terms = terms
+    }
+
+    /// Records a result and returns everything recognized so far (top readings).
+    func add(_ text: String, alternatives: [String], isFinal: Bool) -> String {
         state.withLock { s in
             if isFinal {
-                s.finals = joined(s.finals, text)
+                s.finals.append(RecognizedSegment(text: text, alternatives: alternatives))
+                s.text = joinedTranscript(s.text, text)
                 s.volatile = ""
             } else {
                 s.volatile = text
             }
-            return joined(s.finals, s.volatile)
+            return joinedTranscript(s.text, s.volatile)
         }
     }
 
+    /// The finished transcript, rescored toward the dictionary terms.
     var finalText: String {
-        state.withLock { joined($0.finals, $0.volatile) }
+        state.withLock { s in
+            rescore(s.finals + [RecognizedSegment(text: s.volatile, alternatives: [])], terms: terms)
+        }
     }
-}
-
-/// Joins segments, adding a space only where neither side has one.
-private func joined(_ a: String, _ b: String) -> String {
-    guard let last = a.last, let first = b.first else { return a + b }
-    return last.isWhitespace || first.isWhitespace ? a + b : a + " " + b
 }
 
 /// The on-device speech model for the chosen language, via AssetInventory.

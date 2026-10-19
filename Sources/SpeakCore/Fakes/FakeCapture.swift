@@ -91,7 +91,7 @@ public final class FakeTranscriber: Transcriber {
     /// Shared with each session so cancels are counted across all of them.
     private final class Recorder: Sendable {
         let cancels = Mutex(0)
-        let contexts = Mutex<[[String]]>([])
+        let terms = Mutex<[[String]]>([])
     }
 
     private let config: Mutex<Config>
@@ -103,12 +103,12 @@ public final class FakeTranscriber: Transcriber {
 
     public func configure(_ change: (inout Config) -> Void) { config.withLock { change(&$0) } }
     public var cancelCount: Int { recorder.cancels.withLock { $0 } }
-    /// The contextual strings each session was started with.
-    public var contexts: [[String]] { recorder.contexts.withLock { $0 } }
+    /// The dictionary terms each session was started with.
+    public var terms: [[String]] { recorder.terms.withLock { $0 } }
 
-    public func start(frames: AsyncStream<AudioFrames>, contextualStrings: [String],
+    public func start(frames: AsyncStream<AudioFrames>, terms: [String],
                       onEvent: @escaping @Sendable (TranscriberEvent) -> Void) async throws -> any TranscriberSession {
-        recorder.contexts.withLock { $0.append(contextualStrings) }
+        recorder.terms.withLock { $0.append(terms) }
         let config = self.config.withLock { $0 }
         if config.failToStart { throw StartFailed() }
         let session = Session(config: config, frames: frames, recorder: recorder)

@@ -66,7 +66,7 @@ struct RecognizerLab {
         try say.run()
         say.waitUntilExit()
         let frames = try audioFrames(wav, format: format, trim: trim)
-        let session = try await transcriber.start(frames: frames, contextualStrings: terms) { _ in }
+        let session = try await transcriber.start(frames: frames, terms: terms) { _ in }
         return try await session.finalize()
     }
 
