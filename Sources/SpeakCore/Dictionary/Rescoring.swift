@@ -94,10 +94,21 @@ private func withOuterSpace(of original: String, _ text: String) -> String {
 }
 
 /// Where `phrase` occurs in `words`, as word ranges.
+/// Also 2–3 words that join into the phrase, since the recognizer splits what
+/// the dictionary writes as one ("node JS" for "Node.js").
 private func occurrences(of phrase: [String], in words: [String]) -> [Range<Int>] {
-    guard !phrase.isEmpty, words.count >= phrase.count else { return [] }
-    return (0...(words.count - phrase.count)).map { $0..<($0 + phrase.count) }
-        .filter { words[$0].elementsEqual(phrase) }
+    guard !phrase.isEmpty else { return [] }
+    let joined = phrase.joined()
+    var spans: [Range<Int>] = []
+    for start in words.indices {
+        for length in Set([phrase.count, 2, 3]) where start + length <= words.count {
+            let span = start..<(start + length)
+            if length == phrase.count ? words[span].elementsEqual(phrase) : words[span].joined() == joined {
+                spans.append(span)
+            }
+        }
+    }
+    return spans
 }
 
 private func adjacentRepeats(_ words: [String]) -> Set<String> {

@@ -224,8 +224,9 @@ private struct TermsSection: View {
                 } else {
                     Button("Add common tech terms") {
                         let result = model.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
-                        packStatus = result.skipped == 0 ? "Added \(result.added) terms"
-                            : "Added \(result.added), \(result.skipped) skipped"
+                        let pack = model.dictionary.pack
+                        let added = "Added \(pack?.terms.count ?? 0) terms and \(pack?.pairs.count ?? 0) replacements"
+                        packStatus = result.skipped == 0 ? added : "\(added), \(result.skipped) skipped"
                     }
                 }
             }

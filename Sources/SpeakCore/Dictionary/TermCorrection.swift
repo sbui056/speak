@@ -5,6 +5,8 @@ import Synchronization
 /// a real word ("there" must not become "Thera").
 public protocol SpellChecker: Sendable {
     @MainActor func isMisspelled(_ word: String, language: String) -> Bool
+    /// Every misspelled word in `text`, as written. The default asks word by word.
+    @MainActor func misspelledWords(in text: String, language: String) -> [String]
 }
 
 /// Literal mode's full pipeline: tidy the text, apply the user's replacements,
@@ -12,7 +14,9 @@ public protocol SpellChecker: Sendable {
 @MainActor
 public func makeLiteral(_ raw: String, terms: [String], pairs: [ReplacementPair], spelling: any SpellChecker,
                         language: String) -> String {
-    correctTerms(applyPairs(cleanLiteral(raw), pairs: pairs), terms: terms) { spelling.isMisspelled($0, language: language) }
+    correctTerms(applyPairs(cleanLiteral(raw), pairs: pairs), terms: terms, shielding: pairs.map(\.write)) {
+        spelling.isMisspelled($0, language: language)
+    }
 }
 
 /// Rewrites dictionary terms to the user's exact spelling.
@@ -22,17 +26,26 @@ public func makeLiteral(_ raw: String, terms: [String], pairs: [ReplacementPair]
 ///   the near-miss pass.
 /// - A word one edit away from a single-word term of 5+ characters is replaced
 ///   only if `isMisspelled` says it isn't a real word.
-public func correctTerms(_ text: String, terms: [String], isMisspelled: (String) -> Bool) -> String {
+/// - `shielding` (what replacement pairs wrote) is never changed and never
+///   near-miss corrected.
+public func correctTerms(_ text: String, terms: [String], shielding: [String] = [],
+                         isMisspelled: (String) -> Bool) -> String {
     guard !terms.isEmpty, !text.isEmpty else { return text }
     let ns = text as NSString
-    var edits: [(range: NSRange, term: String, exact: Bool)] = []
+    // `replace` is false for matches that only shield their words from the near-miss pass.
+    var edits: [(range: NSRange, term: String, replace: Bool)] = []
 
-    let (byLength, regex) = termPattern(terms)
+    let termSet = Set(terms.map { $0.lowercased() })
+    let shields = shielding.filter { !termSet.contains($0.lowercased()) }
+    let (byLength, regex) = termPattern(terms + shields)
+    let shieldSet = Set(shields.map { $0.lowercased() })
     if let regex {
         for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
             else { continue }
-            edits.append((match.range, byLength[group - 1], true))
+            let term = byLength[group - 1]
+            // A term with no capital keeps the spoken casing.
+            edits.append((match.range, term, !shieldSet.contains(term.lowercased()) && term.contains(where: \.isUppercase)))
         }
     }
 
@@ -48,14 +61,12 @@ public func correctTerms(_ text: String, terms: [String], isMisspelled: (String)
             let near = fuzzyTerms.filter { isOneEditAway(chars, $0.chars) }.map(\.term)
             // Two terms equally close is a guess; leave the word alone.
             guard near.count == 1, isMisspelled(word) else { continue }
-            edits.append((match.range, near[0], false))
+            edits.append((match.range, near[0], true))
         }
     }
 
     let result = NSMutableString(string: text)
-    // An exact match of a lowercase term only shields its words; a near miss is always fixed.
-    for edit in edits.sorted(by: { $0.range.location > $1.range.location })
-    where !edit.exact || edit.term.contains(where: \.isUppercase) {
+    for edit in edits.sorted(by: { $0.range.location > $1.range.location }) where edit.replace {
         result.replaceCharacters(in: edit.range, with: edit.term)
     }
     return result as String

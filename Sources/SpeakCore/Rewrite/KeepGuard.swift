@@ -40,7 +40,7 @@ func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: 
     let present = presentForms(after)
     let termKeys = terms.map(comparableWords).filter { !$0.isEmpty }
     for term in termKeys where contains(before.map(\.key), term) {
-        if !contains(after.map(\.key), term) && !present.contains(term.joined()) { return .lostProtected }
+        if !containsAllowingInflection(after.map(\.key), term) && !present.contains(term.joined()) { return .lostProtected }
     }
     for (i, token) in before.enumerated() where isProtected(token, english: english, unknownWords: unknownWords) {
         let joins = [i > 0 ? before[i - 1].base + token.base : nil, i + 1 < before.count ? token.base + before[i + 1].base : nil]
@@ -70,11 +70,16 @@ func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: 
 /// guard's `unknownWords`. Words are checked as written ("don't", "Sarah's").
 @MainActor
 public func unknownWords(in literal: String, spelling: any SpellChecker, language: String) -> Set<String> {
-    var seen: Set<String> = [], unknown: Set<String> = []
-    for token in keepTokens(literal, english: false) where !token.isNumber && seen.insert(token.key).inserted {
-        if spelling.isMisspelled(token.raw, language: language) { unknown.insert(token.base) }
+    Set(spelling.misspelledWords(in: literal, language: language).flatMap { keepTokens($0, english: false).map(\.base) })
+}
+
+extension SpellChecker {
+    @MainActor public func misspelledWords(in text: String, language: String) -> [String] {
+        var seen: Set<String> = []
+        return keepTokens(text, english: false)
+            .filter { !$0.isNumber && seen.insert($0.key).inserted && isMisspelled($0.raw, language: language) }
+            .map(\.raw)
     }
-    return unknown
 }
 
 // MARK: Tokens
@@ -106,11 +111,22 @@ private func keepTokens(_ text: String, english: Bool) -> [KeepToken] {
         let startsSentence = tokens.isEmpty || gap.contains(where: { ".!?\n".contains($0) })
         let key = String(raw.lowercased().filter { $0.isLetter || $0.isNumber })
         guard !key.isEmpty, key != "oclock" else { continue }
+        // "1st", "22nd": the suffix belongs to the number.
+        if gap.isEmpty, tokens.last?.isNumber == true, ["st", "nd", "rd", "th"].contains(key) { continue }
+        let breaks = gap.contains(where: { ".,;!?\n".contains($0) })
+        // "noon" is written "12 PM" just as often.
+        if english, let time = ["noon": "pm", "midnight": "am"][key] {
+            tokens.append(KeepToken(raw: raw, key: "12", base: "12", startsSentence: startsSentence, isNumber: true,
+                                    breaksFromPrevious: breaks))
+            tokens.append(KeepToken(raw: raw, key: time, base: time, startsSentence: false, isNumber: false,
+                                    breaksFromPrevious: false))
+            continue
+        }
         var base = raw.lowercased()
         for suffix in ["'s", "’s"] where base.hasSuffix(suffix) { base = String(base.dropLast(2)) }
         tokens.append(KeepToken(raw: raw, key: key, base: String(base.filter { $0.isLetter || $0.isNumber }),
                                 startsSentence: startsSentence, isNumber: key.allSatisfy(\.isNumber),
-                                breaksFromPrevious: gap.contains(where: { ".,;!?\n".contains($0) })))
+                                breaksFromPrevious: breaks))
     }
     return mergeNumbers(tokens, spoken: english)
 }
@@ -163,6 +179,12 @@ private let numberValues: [String: Int] = {
     for (n, word) in ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"].enumerated() {
         values[word] = (n + 2) * 10
     }
+    // Ordinals, so "first" and "1st" are the same number.
+    let ordinals = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+                    "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
+                    "eighteenth", "nineteenth"]
+    for (n, word) in ordinals.enumerated() { values[word] = n + 1 }
+    for (n, word) in ["twentieth", "thirtieth"].enumerated() { values[word] = (n + 2) * 10 }
     return values
 }()
 
@@ -256,6 +278,17 @@ private func negations(_ tokens: [KeepToken]) -> Int {
         || $0.raw.lowercased().hasSuffix("n’t") }.count
 }
 
+/// `phrase` in `words`, its last word possibly inflected ("deploy" → "deploys",
+/// "pull request" → "pull requests").
+private func containsAllowingInflection(_ words: [String], _ phrase: [String]) -> Bool {
+    guard let last = phrase.last, words.count >= phrase.count else { return false }
+    return (0...(words.count - phrase.count)).contains { start in
+        let window = words[start..<(start + phrase.count)]
+        return window.dropLast().elementsEqual(phrase.dropLast())
+            && (window.last == last || isInflection(window.last ?? "", last))
+    }
+}
+
 private func contains(_ words: [String], _ phrase: [String]) -> Bool {
     guard !phrase.isEmpty, words.count >= phrase.count else { return false }
     return (0...(words.count - phrase.count)).contains { words[$0..<($0 + phrase.count)].elementsEqual(phrase) }
@@ -297,6 +330,9 @@ private func classify(_ deleted: [String], _ inserted: [String], keptWords: Set<
     let functionsAgree = isSubmultiset(heardFunction, of: wroteFunction) || isSubmultiset(wroteFunction, of: heardFunction)
         || heardFunction.map(agreementGroup).sorted() == wroteFunction.map(agreementGroup).sorted()
     let mayFix = !deleted.contains(where: capitalized.contains) && !isAntonymSwap(deleted, inserted)
+    // The same digits written another way ("one on one" → "1:1"); the number check has the values.
+    let digits = { (words: [String]) in words.allSatisfy { $0.hasPrefix("#") } ? words.map { $0.dropFirst() }.joined() : nil }
+    if !heard.isEmpty, let h = digits(heard), h == digits(wrote) { return .grammar }
 
     if functionsAgree {
         if heard == wrote { return .grammar }

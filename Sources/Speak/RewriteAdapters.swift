@@ -84,13 +84,27 @@ final class FoundationRewriter: Rewriter {
 /// touches words that aren't real words.
 final class SystemSpellChecker: SpellChecker {
     @MainActor func isMisspelled(_ word: String, language: String) -> Bool {
+        !misspelledWords(in: word, language: language).isEmpty
+    }
+
+    /// One pass over the whole text instead of a call per word (a long Polished
+    /// dictation asks about every word, on the main actor).
+    @MainActor func misspelledWords(in text: String, language: String) -> [String] {
         let checker = NSSpellChecker.shared
         // No checker for this language: another language's checker would flag
         // every word, so nothing counts as misspelled.
         guard let lang = checker.availableLanguages.contains(language) ? language
-            : checker.availableLanguages.first(where: { $0.hasPrefix(language.prefix(2)) }) else { return false }
-        let range = checker.checkSpelling(of: word, startingAt: 0, language: lang, wrap: false,
-                                          inSpellDocumentWithTag: 0, wordCount: nil)
-        return range.location != NSNotFound
+            : checker.availableLanguages.first(where: { $0.hasPrefix(language.prefix(2)) }) else { return [] }
+        let ns = text as NSString
+        var words: [String] = []
+        var start = 0
+        while start < ns.length {
+            let range = checker.checkSpelling(of: text, startingAt: start, language: lang, wrap: false,
+                                              inSpellDocumentWithTag: 0, wordCount: nil)
+            guard range.location != NSNotFound, range.length > 0, range.location >= start else { break }
+            words.append(ns.substring(with: range))
+            start = range.location + range.length
+        }
+        return words
     }
 }

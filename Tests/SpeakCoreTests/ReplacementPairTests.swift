@@ -104,6 +104,12 @@ struct ReplacementPairTests {
         #expect(out == "Open a pull request for Kubernetes")
     }
 
+    @MainActor @Test func nearMissPassLeavesWhatAPairWrote() {
+        let out = makeLiteral("open graph ickle now", terms: ["GraphQL"], pairs: [pair("graph ickle", "GraphiQL")],
+                              spelling: FakeSpellChecker(misspelled: ["graphiql"]), language: "en")
+        #expect(out == "Open GraphiQL now")
+    }
+
     @MainActor @Test func worstCaseLiteralIsFast() {
         let text = Array(repeating: "please open the pool request on staging before lunch", count: 67)
             .joined(separator: " ")

@@ -64,6 +64,12 @@ struct KeepGuardTests {
         #expect(check(literal, cleaned) == nil)
     }
 
+    @Test func inflectedTermStillCountsAsKept() {
+        #expect(check("the script deploy to staging every night", "The script deploys to staging every night.",
+                      terms: ["deploy", "staging"]) == nil)
+        #expect(check("open a pull request", "Open pull requests.", terms: ["pull request"]) == nil)
+    }
+
     @Test func dictionaryTermThatStaysPasses() {
         #expect(check("run kubectl apply on staging", "Run kubectl apply on staging.", terms: ["kubectl"]) == nil)
     }
@@ -136,6 +142,9 @@ struct KeepGuardTests {
         ("Please merge the branch.", "Please purge the branch."),
         ("We accept the terms.", "We except the terms."),
         ("Mark will review it.", "Mike will review it."),
+        ("The first item is ready.", "The second item is ready."),
+        ("Lunch at noon.", "Lunch at 1 PM."),
+        ("Ask Dr. Smith about it.", "Ask Dr. Smyth about it."),
     ])
     func meaningChangesAreRejected(_ literal: String, _ cleaned: String) {
         #expect(check(literal, cleaned) != nil)
@@ -153,6 +162,11 @@ struct KeepGuardTests {
         ("They will be there.", "They'll be there."),
         ("we need two thousand five hundred units", "We need 2,500 units."),
         ("I tried I tried restarting it", "I tried restarting it."),
+        ("The first item is ready.", "The 1st item is ready."),
+        ("the twenty first of June works", "The 21st of June works."),
+        ("let's do a one on one tomorrow", "Let's do a 1:1 tomorrow."),
+        ("lunch at noon on Friday", "Lunch at 12 PM on Friday."),
+        ("Ask Dr. Smith about it.", "Ask Dr. Smith about it"),
     ])
     func everydayCleanupsPass(_ literal: String, _ cleaned: String) {
         #expect(check(literal, cleaned) == nil)
