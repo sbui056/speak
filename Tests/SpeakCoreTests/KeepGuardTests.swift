@@ -121,6 +121,43 @@ struct KeepGuardTests {
         #expect(check("The cash and the pool are fine today", "The cache and the pull are fine today") == nil)
     }
 
+    // Review of the first keep guard: meaning changes that passed.
+    @Test(arguments: [
+        ("I want the blue one.", "I want one."),
+        ("Delete the old staging branch.", "Delete the branch."),
+        ("Only invite managers.", "Invite managers."),
+        ("We meet last Friday.", "We meet this Friday."),
+        ("Turn off the alarm.", "Turn on the alarm."),
+        ("Ship it without the tests.", "Ship it with the tests."),
+        ("Send it to him.", "Send it to her."),
+        ("Bring cats and dogs.", "Bring cats or dogs."),
+        ("You must sign it.", "You might sign it."),
+        ("Increase the budget now.", "Decrease the budget now."),
+        ("Please merge the branch.", "Please purge the branch."),
+        ("We accept the terms.", "We except the terms."),
+        ("Mark will review it.", "Mike will review it."),
+    ])
+    func meaningChangesAreRejected(_ literal: String, _ cleaned: String) {
+        #expect(check(literal, cleaned) != nil)
+    }
+
+    @Test func moreNegationWordsCount() {
+        #expect(check("I have nothing to add.", "I have something to add.") == .negation)
+        #expect(check("Nobody approved it.", "Somebody approved it.") == .negation)
+    }
+
+    @Test(arguments: [
+        ("Oh, one more thing.", "One more thing."),
+        ("He is late again.", "He's late again."),
+        ("What is the plan?", "What's the plan?"),
+        ("They will be there.", "They'll be there."),
+        ("we need two thousand five hundred units", "We need 2,500 units."),
+        ("I tried I tried restarting it", "I tried restarting it."),
+    ])
+    func everydayCleanupsPass(_ literal: String, _ cleaned: String) {
+        #expect(check(literal, cleaned) == nil)
+    }
+
     // MARK: Other languages
 
     @Test func otherLanguagesKeepOnlyLanguageNeutralFacts() {

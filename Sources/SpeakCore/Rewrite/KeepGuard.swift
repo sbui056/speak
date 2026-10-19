@@ -51,9 +51,13 @@ func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: 
     guard english else { return nil }
     if negations(before) != negations(after) { return .negation }
 
+    // A capitalized word may be a name: never "fixed" as a sound-alike.
+    let capitalized = Set(before.filter { $0.raw.first?.isUppercase == true && !["i", "im", "ill", "ive", "id"].contains($0.key) }
+        .map(\.key))
+    let kept = Set(after.map(\.key))
     var fixes = 0
     for run in changedRuns(before.map(\.key), after.map(\.key)) {
-        switch classify(run.deleted, run.inserted) {
+        switch classify(run.deleted, run.inserted, keptWords: kept, capitalized: capitalized) {
         case .grammar: continue
         case .soundAlike: fixes += 1
         case .unrelated: return .unrelated
@@ -84,6 +88,8 @@ private struct KeepToken {
     let base: String
     let startsSentence: Bool
     let isNumber: Bool
+    /// Punctuation between this token and the one before ("," ".").
+    let breaksFromPrevious: Bool
 }
 
 /// Words and digit runs. Hyphenated words split ("follow-up" → "follow", "up");
@@ -103,7 +109,8 @@ private func keepTokens(_ text: String, english: Bool) -> [KeepToken] {
         var base = raw.lowercased()
         for suffix in ["'s", "’s"] where base.hasSuffix(suffix) { base = String(base.dropLast(2)) }
         tokens.append(KeepToken(raw: raw, key: key, base: String(base.filter { $0.isLetter || $0.isNumber }),
-                                startsSentence: startsSentence, isNumber: key.allSatisfy(\.isNumber)))
+                                startsSentence: startsSentence, isNumber: key.allSatisfy(\.isNumber),
+                                breaksFromPrevious: gap.contains(where: { ".,;!?\n".contains($0) })))
     }
     return mergeNumbers(tokens, spoken: english)
 }
@@ -115,7 +122,10 @@ private func mergeNumbers(_ tokens: [KeepToken], spoken: Bool) -> [KeepToken] {
     var i = 0
     while i < tokens.count {
         var j = i
-        while j < tokens.count, isNumberToken(tokens, j, spoken: spoken) { j += 1 }
+        while j < tokens.count, isNumberToken(tokens, j, spoken: spoken),
+              j == i || !tokens[j].breaksFromPrevious || (tokens[j - 1].isNumber && tokens[j].isNumber) {
+            j += 1
+        }
         if j == i {
             out.append(tokens[i])
             i += 1
@@ -125,20 +135,22 @@ private func mergeNumbers(_ tokens: [KeepToken], spoken: Bool) -> [KeepToken] {
         let run = tokens[i..<j].enumerated().filter { $0.offset == 0 || $0.element.key != "00" }.map(\.element)
         let digits = "#" + spokenDigits(run.map(\.key))
         out.append(KeepToken(raw: tokens[i..<j].map(\.raw).joined(separator: " "), key: digits, base: digits,
-                             startsSentence: tokens[i].startsSentence, isNumber: true))
+                             startsSentence: tokens[i].startsSentence, isNumber: true,
+                             breaksFromPrevious: tokens[i].breaksFromPrevious))
         i = j
     }
     return out
 }
 
-/// A digit run, or (in English) a number word; "oh" counts only next to another number.
+/// A digit run, or (in English) a number word; "oh" counts only right after
+/// another number ("five oh one"), never as "Oh, one more thing".
 private func isNumberToken(_ tokens: [KeepToken], _ i: Int, spoken: Bool) -> Bool {
     let key = tokens[i].key
     if tokens[i].isNumber { return true }
     guard spoken else { return false }
     if key == "oh" {
-        let neighbour = { (j: Int) in tokens.indices.contains(j) && (tokens[j].isNumber || numberValues[tokens[j].key] != nil) }
-        return neighbour(i - 1) || neighbour(i + 1)
+        return i > 0 && !tokens[i].breaksFromPrevious
+            && (tokens[i - 1].isNumber || numberValues[tokens[i - 1].key] != nil)
     }
     return numberValues[key] != nil
 }
@@ -155,12 +167,13 @@ private let numberValues: [String: Int] = {
 }()
 
 /// The digits a run of numbers is written with: "twenty five" → "25",
-/// "five five five oh one" → "55501", "two thirty" → "230", "one hundred five" → "105".
+/// "five five five oh one" → "55501", "two thirty" → "230", "one hundred five" → "105",
+/// "two thousand five hundred" → "2500".
 private func spokenDigits(_ keys: [String]) -> String {
-    var out = "", current: Int?, last = 0
+    var out = "", total = 0, group = 0, active = false, last = 0
     func flush() {
-        if let value = current { out += String(value) }
-        current = nil
+        if active { out += String(total + group) }
+        (total, group, active) = (0, 0, false)
     }
     for key in keys {
         guard let value = numberValues[key] else {
@@ -169,16 +182,20 @@ private func spokenDigits(_ keys: [String]) -> String {
             last = 0
             continue
         }
-        // "twenty" + "five", "hundred" + "five"/"fifteen"/"thirty" add up; anything else starts a new number.
+        // "twenty" + "five" and "hundred" + "five"/"fifteen"/"thirty" add up; anything else starts a new number.
         let adds = (value < 10 && last >= 20 && last % 10 == 0) || (value < 100 && last >= 100)
-        if value == 100 || value == 1000 {
-            current = (current ?? 1) * value
-        } else if adds, let sum = current {
-            current = sum + value
+        if value == 1000 {
+            total += max(group, 1) * 1000
+            group = 0
+        } else if value == 100 {
+            group = max(group, 1) * 100
+        } else if active && adds {
+            group += value
         } else {
             flush()
-            current = value
+            group = value
         }
+        active = true
         last = value
     }
     flush()
@@ -231,8 +248,11 @@ private func presentForms(_ tokens: [KeepToken]) -> Set<String> {
     return forms
 }
 
+private let negationWords: Set<String> = ["not", "no", "never", "cannot", "nothing", "nobody", "none", "neither",
+                                          "nor", "nowhere", "without"]
+
 private func negations(_ tokens: [KeepToken]) -> Int {
-    tokens.filter { ["not", "no", "never", "cannot"].contains($0.key) || $0.raw.lowercased().hasSuffix("n't")
+    tokens.filter { negationWords.contains($0.key) || $0.raw.lowercased().hasSuffix("n't")
         || $0.raw.lowercased().hasSuffix("n’t") }.count
 }
 
@@ -262,18 +282,74 @@ private func changedRuns(_ a: [String], _ b: [String]) -> [(deleted: [String], i
 
 private enum ChangeKind { case grammar, soundAlike, unrelated }
 
-/// Fillers and function words don't count; what's left must match, be an
-/// inflection or a join/split, or sound alike (at most three words a side).
-private func classify(_ deleted: [String], _ inserted: [String]) -> ChangeKind {
-    let content = { (words: [String]) in
-        words.flatMap { contractions[$0] ?? [$0] }.filter { !droppable.contains($0) && !functionWords.contains($0) }
+/// Fillers don't count. Function words may be added or dropped, or swapped
+/// only for agreement ("is" → "are"); content words may be dropped only if they
+/// still appear elsewhere (a repeated false start). What's left must match, be
+/// an inflection or a join/split, or sound alike (at most three words a side,
+/// not a capitalized word, not an antonym like "increase" → "decrease").
+private func classify(_ deleted: [String], _ inserted: [String], keptWords: Set<String>,
+                      capitalized: Set<String>) -> ChangeKind {
+    if deleted.joined() == inserted.joined() { return .grammar }
+    let expand = { (words: [String]) in words.flatMap { contractions[$0] ?? [$0] }.filter { !fillers.contains($0) } }
+    let heardAll = expand(deleted), wroteAll = expand(inserted)
+    let heard = heardAll.filter { !functionWords.contains($0) }, wrote = wroteAll.filter { !functionWords.contains($0) }
+    let heardFunction = heardAll.filter(functionWords.contains), wroteFunction = wroteAll.filter(functionWords.contains)
+    let functionsAgree = isSubmultiset(heardFunction, of: wroteFunction) || isSubmultiset(wroteFunction, of: heardFunction)
+        || heardFunction.map(agreementGroup).sorted() == wroteFunction.map(agreementGroup).sorted()
+    let mayFix = !deleted.contains(where: capitalized.contains) && !isAntonymSwap(deleted, inserted)
+
+    if functionsAgree {
+        if heard == wrote { return .grammar }
+        if wrote.isEmpty {
+            if heard.allSatisfy(keptWords.contains) { return .grammar }
+        } else if !heard.isEmpty {
+            if heard.count == wrote.count, zip(heard, wrote).allSatisfy(isInflection) { return .grammar }
+            if mayFix, heard.count <= 3, wrote.count <= 3, soundsAlike(heard, wrote) { return .soundAlike }
+        }
     }
-    let heard = content(deleted), wrote = content(inserted)
-    if wrote.isEmpty || heard == wrote || heard.joined() == wrote.joined() { return .grammar }
-    if heard.isEmpty { return .unrelated }
-    if heard.count == wrote.count, zip(heard, wrote).allSatisfy(isInflection) { return .grammar }
-    if heard.count <= 3, wrote.count <= 3, soundsAlike(heard, wrote) { return .soundAlike }
+    // A mishearing can span small words: "it's called" → "to call".
+    if mayFix, !heard.isEmpty || !wrote.isEmpty, deleted.count <= 3, inserted.count <= 3, soundsAlike(deleted, inserted) {
+        return .soundAlike
+    }
     return .unrelated
+}
+
+private func isSubmultiset(_ a: [String], of b: [String]) -> Bool {
+    var remaining = b
+    for word in a {
+        guard let i = remaining.firstIndex(of: word) else { return false }
+        remaining.remove(at: i)
+    }
+    return true
+}
+
+/// Concise's droppable words minus the function words, which are checked on their own.
+private let fillers = droppable.subtracting(functionWords)
+
+/// Function words a grammar fix may swap for one another.
+private func agreementGroup(_ word: String) -> String {
+    switch word {
+    case "is", "are", "am", "be": "be"
+    case "was", "were": "was"
+    case "a", "an", "the": "a"
+    case "has", "have": "have"
+    case "do", "does": "do"
+    default: word
+    }
+}
+
+/// Opposites that sound alike enough to pass as a mishearing.
+private let antonyms: [(String, String)] = [
+    ("increase", "decrease"), ("include", "exclude"), ("accept", "except"), ("merge", "purge"), ("enable", "disable"),
+    ("add", "remove"), ("hire", "fire"), ("import", "export"), ("input", "output"), ("inbound", "outbound"),
+    ("upload", "download"), ("encrypt", "decrypt"), ("inflate", "deflate"), ("ascending", "descending"),
+]
+
+private func isAntonymSwap(_ heard: [String], _ wrote: [String]) -> Bool {
+    let form = { (word: String, base: String) in word == base || isInflection(word, base) }
+    return heard.contains { h in
+        wrote.contains { w in antonyms.contains { (form(h, $0.0) && form(w, $0.1)) || (form(h, $0.1) && form(w, $0.0)) } }
+    }
 }
 
 private func isInflection(_ a: String, _ b: String) -> Bool {
@@ -288,6 +364,12 @@ private let contractions: [String: [String]] = [
     "couldnt": ["could", "not"], "havent": ["have", "not"], "hasnt": ["has", "not"], "hadnt": ["had", "not"],
     "im": ["i", "am"], "ive": ["i", "have"], "ill": ["i", "will"], "id": ["i", "would"], "youre": ["you", "are"],
     "theyre": ["they", "are"], "its": ["it", "is"], "thats": ["that", "is"], "lets": ["let", "us"],
+    "hes": ["he", "is"], "shes": ["she", "is"], "whats": ["what", "is"], "theres": ["there", "is"],
+    "heres": ["here", "is"], "wheres": ["where", "is"], "whos": ["who", "is"], "hows": ["how", "is"],
+    "itll": ["it", "will"], "thatll": ["that", "will"], "theyll": ["they", "will"], "youll": ["you", "will"],
+    "weve": ["we", "have"], "theyve": ["they", "have"], "youve": ["you", "have"], "theyd": ["they", "would"],
+    "youd": ["you", "would"], "wouldve": ["would", "have"], "couldve": ["could", "have"],
+    "shouldve": ["should", "have"],
     "gonna": ["going", "to"], "wanna": ["want", "to"], "gotta": ["got", "to"], "kinda": ["kind", "of"],
 ]
 
@@ -299,5 +381,5 @@ private let functionWords: Set<String> = [
     "is", "are", "was", "were", "be", "been", "being", "am", "do", "does", "did", "have", "has", "had", "will",
     "would", "shall", "should", "can", "could", "might", "must", "to", "of", "in", "on", "at", "by", "for",
     "with", "from", "into", "onto", "about", "as", "than", "then", "and", "or", "but", "if", "because", "while",
-    "there", "here", "also", "too", "very", "let", "not", "no", "never",
+    "there", "here", "also", "too", "very", "let", "not", "no", "never", "what", "who", "how", "where",
 ]

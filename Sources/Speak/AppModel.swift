@@ -185,7 +185,7 @@ final class AppModel {
             self?.history.record(text)
         }
         controller.onRewriteRejected = { mode, why in
-            Log.rewrite.info("rewrite rejected by the guard mode=\(mode.rawValue, privacy: .public) why=\(why.name, privacy: .public)")
+            Log.rewrite.notice("rewrite rejected by the guard mode=\(mode.rawValue, privacy: .public) why=\(why.name, privacy: .public)")
         }
         sendRewriteSettings()
         Task { await controller.run() }
