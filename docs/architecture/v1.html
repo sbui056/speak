@@ -161,7 +161,7 @@ td:first-child { font-weight: 600; width: 26%; }
 td:last-child { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); width: 18%; }
 
 /* Roadmap */
-.phases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--fg); }
+.phases { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--fg); }
 .phase { padding: 16px 16px 0 0; display: grid; gap: 8px; align-content: start; }
 .phase + .phase { padding-left: 16px; border-left: 1px solid var(--line); }
 .phase .pn { font-family: var(--f-mono); font-size: 13px; color: var(--muted); }
@@ -429,6 +429,7 @@ footer { color: var(--muted); font-size: 13px; font-family: var(--f-mono); borde
     <div class="phase daily"><span class="pn">P1</span><h3>Dictation</h3><ul><li>Hotkey, mic, on-device speech</li><li>Delivery checks and paste</li><li>HUD and permission setup</li></ul><div class="gate">gate: dictate into 4 apps + a password field</div></div>
     <div class="phase"><span class="pn">P2</span><h3>Dictionary &amp; rewrite</h3><ul><li>Personal dictionary</li><li>Concise and Polished modes</li><li>Diff preview, undo</li></ul><div class="gate">gate: name fixed, rewrite rejected</div></div>
     <div class="phase"><span class="pn">P3</span><h3>Polish</h3><ul><li>History, launch at login</li><li>Icon, CI, README, demo GIF</li><li>Full manual test checklist</li></ul><div class="gate">gate: checklist passes, CI green</div></div>
+    <div class="phase"><span class="pn">P4</span><h3>Speed &amp; memory</h3><ul><li>Rewrite session ready at key press</li><li>Latency and memory tooling</li><li>Repo polish</li></ul><div class="gate">gate: Polished median under 0.7 s, flat memory</div></div>
     <div class="phase"><span class="pn">P5</span><h3>Accuracy</h3><ul><li>Alternatives rescoring</li><li>Replacements, tech terms</li><li>Polished keep guard</li></ul><div class="gate">gate: more target words in a read-aloud script</div></div>
   </div>
 </section>

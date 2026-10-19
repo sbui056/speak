@@ -1,6 +1,6 @@
 # Speak
 
-Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all on-device.
+Hold a key, talk, let go. Clean text appears at your cursor in any Mac app, and everything runs on your Mac.
 
 [![CI](https://github.com/sbui056/speak/actions/workflows/ci.yml/badge.svg)](https://github.com/sbui056/speak/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -10,77 +10,91 @@ Hold a key, talk, let go: clean text appears at your cursor in any Mac app, all 
 
 ![Speak in action](docs/demo.gif)
 
+Speak is a menu-bar app built on Apple's SpeechAnalyzer and on-device Foundation Models. It makes no network calls, never writes audio to disk, and costs nothing to run.
+
 ## Features
 
-- **Push to talk anywhere.** Hold Right Option (or Right Command / Right Control), speak, release. The text is pasted where your cursor is, and your clipboard is put back afterwards.
-- **On-device speech recognition** with Apple's SpeechAnalyzer, with a live preview of the words while you talk.
-- **Three modes.** *Literal* types exactly what you said, with spacing and the first capital tidied and dictionary spellings applied. *Concise* and *Polished* rewrite it with Apple Intelligence's on-device model.
-- **No surprise rewrites.** When a rewrite changes your words, a preview shows the difference first. Choose Insert, Insert literal, Edit, Copy, or Cancel. You can set **Show preview** to *Always*, *When words change* (the default), or *Never*.
-- **Dictionary** for names and jargon ("Siobhan", "Kubernetes"). When the recognizer offers another reading that spells one of your terms, Speak picks it; it also fixes near-misses. **Replacements** fix what it keeps mishearing ("pool request" → "pull request"), and one click adds about 70 common tech terms.
-- **Polished keeps your facts.** A rewrite that changes a number, day, name, acronym, dictionary term, or a "not" falls back to what you said.
-- **Undo insert** for 30 seconds after a paste, and **Paste / Copy last transcript** from the menu bar.
-- **Safe fallbacks.** If Speak can't paste (no text field, secure input, keys still held), it copies the text and tells you why.
-- **Optional history** of your last 50 dictations, as text only. It's off by default.
+- Push to talk in any app. Hold Right Option (or Right Command / Right Control), speak, and release. The text is pasted at your cursor and your clipboard is restored.
+- Three modes. Literal types what you said, tidied and with your dictionary applied. Concise and Polished rewrite it with Apple Intelligence.
+- By default, a rewrite that changes your words opens a preview first. You can insert it, insert your original words, edit, copy, or cancel.
+- Polished keeps your facts. If a rewrite changes a number, date, name, acronym, dictionary term, or a "not", Speak inserts what you said instead.
+- A dictionary for names and jargon, replacements for words it keeps mishearing ("pool request" → "pull request"), and an optional pack of about 70 common tech terms.
+- Undo insert for 30 seconds, and paste or copy the last transcript from the menu bar.
+- When Speak can't paste (no text field, a password field, keys still held), it copies the text and tells you why.
+- Optional history of your last 50 dictations, as text only. Off by default.
 
-## See it
+## Demos
 
-**Polished: preview the rewrite, ⏎ to insert**
+Polished mode: preview the rewrite, press ⏎ to insert.
 
 ![Polished mode preview](docs/demo-polish.gif)
 
-**Works in any app**
+Works in any app.
 
 ![Dictating into Notes, Terminal, and a browser](docs/demo-anywhere.gif)
 
-**Teach it names**
+Teach it names.
 
 ![Adding names to the dictionary](docs/demo-dictionary.gif)
 
 ## Install
 
-**You need:** macOS 26 (Tahoe) on Apple Silicon, plus the Swift toolchain (Xcode or the Command Line Tools: `xcode-select --install`). Apple Intelligence is only needed for Concise and Polished.
+Requirements: macOS 26 (Tahoe) on Apple Silicon, and the Swift toolchain (Xcode, or the Command Line Tools via `xcode-select --install`). Apple Intelligence is needed only for Concise and Polished.
+
+There is no prebuilt app yet. Build from source:
 
 ```sh
 git clone https://github.com/sbui056/speak.git
 cd speak
-scripts/make-identity.sh   # once: creates a local self-signed code-signing identity
+scripts/make-identity.sh   # once: creates a local self-signed signing identity
 scripts/bundle.sh          # builds, signs, installs to ~/Applications/Speak.app, and launches
 ```
 
-The stable local identity keeps macOS permission grants across rebuilds. Speak then asks for three permissions:
+The local signing identity stays the same across rebuilds, so macOS keeps your permission grants. To update, run `git pull && scripts/bundle.sh`.
 
-| Permission | Why Speak needs it |
+Speak asks for three permissions:
+
+| Permission | Used for |
 |---|---|
-| **Microphone** | To hear what you dictate. Audio stays in memory and is never written to disk. |
-| **Input Monitoring** | To notice when you hold the shortcut key. The key tap only listens and never blocks or changes keys. |
-| **Accessibility** | To paste the text at your cursor, check that a text field is focused, and offer Undo. |
+| Microphone | Hearing your dictation. Audio stays in memory. |
+| Input Monitoring | Noticing when you hold the shortcut. The key tap only listens; it never blocks or changes keys. |
+| Accessibility | Pasting at your cursor, checking that a text field is focused, and Undo. |
 
-After you grant Input Monitoring, Speak asks to relaunch once, because macOS only applies that permission to a new process.
+After you grant Input Monitoring, Speak relaunches once, because macOS applies that permission only to a new process.
 
 ## Usage
 
 | Action | How |
 |---|---|
-| Dictate | Hold **Right Option**, speak, and release |
-| Cancel while talking | **Esc**, or press another key with the shortcut |
-| Preview: insert the rewrite | **⏎** |
-| Preview: insert your exact words | **⌥⏎** |
-| Preview: copy instead | **⌘C** |
-| Preview: discard | **Esc** |
-| Change mode / Show preview | Menu bar icon → **Mode** |
-| Undo the last paste | Menu bar icon → **Undo insert** (within 30 s) |
-| Paste or copy the last transcript | Menu bar icon → **Paste last transcript** / **Copy last transcript** |
-| Add names and jargon | Menu bar icon → **Dictionary…** |
-| See your history (when it's on) | Menu bar icon → **History…** |
+| Dictate | Hold Right Option, speak, release |
+| Cancel while talking | Esc, or press another key with the shortcut |
+| Preview: insert the rewrite | ⏎ |
+| Preview: insert your exact words | ⌥⏎ |
+| Preview: copy instead | ⌘C |
+| Preview: discard | Esc |
+| Change mode or preview behavior | Menu bar → Mode |
+| Undo the last paste | Menu bar → Undo insert (within 30 s) |
+| Paste or copy the last transcript | Menu bar → Paste last transcript / Copy last transcript |
+| Add names and jargon | Menu bar → Dictionary… |
+| Browse history (when on) | Menu bar → History… |
 
-In Settings you can check permissions, choose the shortcut key and the language, see Apple Intelligence status, set Show preview, turn history on or off, set launch at login, copy diagnostics, and check that Speak can type (it types a fixed sample sentence; it doesn't use the microphone).
+Settings covers permissions, the shortcut key, language, Apple Intelligence status, preview behavior, history, launch at login, diagnostics, and a typing test that inserts a fixed sentence without using the microphone.
 
 ## Privacy
 
-- **No network.** Speak contains no networking code and has no network entitlement. `scripts/check-privacy.sh` enforces both in CI.
-- **No audio on disk.** Audio lives in memory for the length of one dictation.
-- **History is off by default.** When you turn it on, it keeps the text of your last 50 dictations in `~/Library/Application Support/Speak/`. That folder is private to your user account and excluded from backups. **Delete all history** removes the entries for good.
-- **Logs contain no text.** Logs record states, timings, and error codes only. **Copy diagnostics** follows the same rule.
+- No network. Speak has no networking code and no network entitlement. CI checks both on every push (`scripts/check-privacy.sh`).
+- No audio on disk. Audio is held in memory for the length of one dictation.
+- History is off by default. When on, it stores the text of your last 50 dictations in `~/Library/Application Support/Speak/`, readable only by your account and excluded from backups. Delete all history removes it.
+- Logs and Copy diagnostics record states, timings, and error codes, never text.
+
+## Performance
+
+Time from releasing the key to text at the cursor, on an M2 MacBook Air, from Speak's own timing logs:
+
+| Mode | Median | p90 | Dictations |
+|---|---|---|---|
+| Literal | 0.12 s | 0.20 s | 182 |
+| Polished (no preview) | 0.58 s | 0.95 s | 21 |
 
 ## Architecture
 
@@ -99,37 +113,26 @@ flowchart LR
   rules -->|fail| copy["Copy + reason"]
 ```
 
-All decisions live in `SpeakCore`, a pure state machine with no UI or system frameworks. It reaches the system through small protocols, and the `Speak` target supplies the real adapters. See [docs/architecture/v1.md](docs/architecture/v1.md) for the state machine, delivery rules, and design decisions.
+All decisions live in `SpeakCore`, a pure state machine with no UI or system frameworks. It reaches the system through small protocols, and the `Speak` target supplies the real adapters. [docs/architecture/v1.md](docs/architecture/v1.md) covers the state machine, delivery rules, and design decisions.
 
-## Testing
+## Development
 
 ```sh
-scripts/test.sh            # the SpeakCore suite, with fakes for audio, speech, keys, and the model
-scripts/check-privacy.sh   # no networking, no text in public logs, SpeakCore stays framework-free
-scripts/soak.sh            # 100 fake dictations in a debug build, then footprint growth and leaks
-scripts/latency.sh         # latency per mode and per stage, plus memory, from Speak's own logs
-scripts/corpus.sh          # 55 fixed dictations (incl. Spanish, Japanese) through the real model; flags dropped meaning
+scripts/test.sh            # SpeakCore tests, with fakes for audio, speech, keys, and the model
+scripts/check-privacy.sh   # no networking, no text in logs, SpeakCore stays framework-free
+scripts/latency.sh         # latency per mode and stage, plus memory, from Speak's logs
+scripts/soak.sh            # 100 fake dictations in a debug build; memory growth and leaks
+scripts/corpus.sh          # 55 fixed dictations through the real model; flags dropped meaning
 ```
 
-The tests cover the session state machine, delivery rules, clipboard restore, undo, the rewrite guard (including prompt-injection attempts), the dictionary, and history storage. They need no microphone, permissions, or Apple Intelligence, so they run on CI.
-
-## Latency
-
-Time from releasing the key to the text appearing, on an M2 MacBook Air, from Speak's own timing logs:
-
-| Mode | Median | p90 | Dictations |
-|---|---|---|---|
-| Literal | 0.12 s | 0.20 s | 182 |
-| Polished (no preview) | 0.58 s | 0.95 s | 21 |
-
-Polished was 0.99 s / 1.95 s before the rewrite started preparing its model session at key press, switched to the guardrails meant for rewriting the user's own text, and the speech analyzer got user-initiated priority. The Polished sample is one build's worth (21 dictations); it will grow with use.
+The tests need no microphone, permissions, or Apple Intelligence, so they run in CI. They cover the session state machine, delivery rules, clipboard restore, undo, the rewrite guards (including prompt-injection attempts), the dictionary, and history storage.
 
 ## Known limits
 
 - The shortcut key and Esc also reach the focused app, because the key tap only listens.
-- Undo is best-effort. Speak only offers it while the same app and field are focused and the text length still matches.
-- Concise and Polished need Apple Intelligence turned on. Without it, Speak uses Literal.
-- On keyboard layouts where Right Option is AltGr, choose Right Command as the shortcut.
+- Undo is best-effort. It is offered only while the same app and field are focused and the text length still matches.
+- Concise and Polished need Apple Intelligence. Without it, Speak uses Literal.
+- On layouts where Right Option is AltGr, choose Right Command as the shortcut.
 - Terminal editors that remap ⌘V may not paste. Use Copy last transcript instead.
 - Remote-desktop and VM apps read the clipboard slowly. If a paste comes out wrong, add the app's bundle ID to `slowPasteApps` in `Sources/SpeakCore/Constants.swift`.
 
