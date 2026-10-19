@@ -133,11 +133,12 @@ private struct HistoryRow: View {
     }
 }
 
+/// Terms and replacement pairs, one at a time, under shared notices.
 private struct DictionaryView: View {
+    enum Section: Hashable { case terms, replacements }
+
     let model: DictionaryModel
-    @State private var newTerm = ""
-    @State private var addError: TermError?
-    @FocusState private var addFocused: Bool
+    @State private var section = Section.terms
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -149,7 +150,34 @@ private struct DictionaryView: View {
             if model.saveFailed {
                 Notice(text: "Couldn't save the dictionary. Changes last until Speak quits.")
             }
+            Picker("Show", selection: $section) {
+                Text("Terms").tag(Section.terms)
+                Text("Replacements").tag(Section.replacements)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
+            switch section {
+            case .terms: TermsSection(model: model)
+            case .replacements: ReplacementsSection(model: model)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 360, minHeight: 320)
+    }
+}
+
+private struct TermsSection: View {
+    let model: DictionaryModel
+    @State private var newTerm = ""
+    @State private var addError: TermError?
+    @State private var packStatus: String?
+    @FocusState private var addFocused: Bool
+
+    private var packAdded: Bool { TechTerms.terms.contains(where: model.terms.contains) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 TextField("Add a name or term", text: $newTerm)
                     .textFieldStyle(.roundedBorder)
@@ -178,12 +206,30 @@ private struct DictionaryView: View {
                     }
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: true))
-                Text("\(model.terms.count) of \(Constants.dictMaxEntries)")
-                    .font(.caption).foregroundStyle(.secondary)
+            }
+            HStack {
+                if !model.terms.isEmpty {
+                    Text("\(model.terms.count) of \(Constants.dictMaxEntries)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let packStatus {
+                    Text(packStatus).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if packAdded {
+                    Button("Remove tech terms") {
+                        _ = model.removePack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+                        packStatus = nil
+                    }
+                } else {
+                    Button("Add common tech terms") {
+                        let result = model.addPack(terms: TechTerms.terms, pairs: TechTerms.pairs)
+                        packStatus = result.skipped == 0 ? "Added \(result.added) terms"
+                            : "Added \(result.added), \(result.skipped) skipped"
+                    }
+                }
             }
         }
-        .padding(16)
-        .frame(minWidth: 360, minHeight: 320)
         .onAppear { addFocused = true }
     }
 
@@ -193,6 +239,136 @@ private struct DictionaryView: View {
             newTerm = ""
         } catch {
             addError = error
+        }
+    }
+}
+
+/// "When Speak hears this, write that" pairs.
+private struct ReplacementsSection: View {
+    let model: DictionaryModel
+    @State private var heard = ""
+    @State private var write = ""
+    @State private var addError: TermError?
+    @FocusState private var heardFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                TextField("Heard", text: $heard)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($heardFocused)
+                Image(systemName: "arrow.right").foregroundStyle(.secondary).accessibilityHidden(true)
+                TextField("Write", text: $write)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                Button("Add", action: add)
+                    .disabled(heard.trimmingCharacters(in: .whitespaces).isEmpty
+                        || write.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .onChange(of: heard) { addError = nil }
+            .onChange(of: write) { addError = nil }
+            if let addError {
+                Label(addError.message, systemImage: "exclamationmark.circle")
+                    .font(.caption).foregroundStyle(.red)
+            }
+
+            if model.pairs.isEmpty {
+                Spacer()
+                Text("Add what Speak hears and what it should write — like 'pool request' → 'pull request'.")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                List {
+                    ForEach(Array(model.pairs.enumerated()), id: \.element.heard) { index, pair in
+                        PairRow(pair: pair, index: index, model: model)
+                    }
+                }
+                .listStyle(.inset(alternatesRowBackgrounds: true))
+                Text("\(model.pairs.count) of \(Constants.pairsMax)")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { heardFocused = true }
+    }
+
+    private func add() {
+        do {
+            try model.addPair(heard: heard, write: write)
+            heard = ""
+            write = ""
+            heardFocused = true
+        } catch {
+            addError = error
+        }
+    }
+}
+
+/// A pair that edits in place: Return saves, Esc reverts.
+private struct PairRow: View {
+    let pair: ReplacementPair
+    let index: Int
+    let model: DictionaryModel
+    @State private var heard = ""
+    @State private var write = ""
+    @State private var editing = false
+    @State private var error: TermError?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                if editing {
+                    TextField("Heard", text: $heard)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focused)
+                        .onSubmit(save)
+                    Image(systemName: "arrow.right").foregroundStyle(.secondary).accessibilityHidden(true)
+                    TextField("Write", text: $write)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(save)
+                    Button("Save") { save() }
+                        .buttonStyle(.borderless)
+                } else {
+                    Text("\(pair.heard) → \(pair.write)")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                        .onTapGesture(count: 2) { startEditing() }
+                    Button("Edit") { startEditing() }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Edit \(pair.heard)")
+                }
+                Button {
+                    model.removePair(at: index)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Delete \(pair.heard)")
+            }
+            .onExitCommand { if editing { editing = false; error = nil } }
+            .onChange(of: heard) { error = nil }
+            .onChange(of: write) { error = nil }
+            if let error {
+                Text(error.message).font(.caption).foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func startEditing() {
+        heard = pair.heard
+        write = pair.write
+        editing = true
+        focused = true
+    }
+
+    private func save() {
+        do {
+            try model.replacePair(at: index, heard: heard, write: write)
+            editing = false
+        } catch {
+            self.error = error
         }
     }
 }
