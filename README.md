@@ -115,7 +115,7 @@ flowchart LR
   rules -->|fail| copy["Copy + reason"]
 ```
 
-All decisions live in `SpeakCore`, a pure state machine with no UI or system frameworks. It reaches the system through small protocols, and the `Speak` target supplies the real adapters. [docs/architecture/v1.md](docs/architecture/v1.md) covers the state machine, delivery rules, and design decisions.
+All decisions live in `SpeakCore`, a pure state machine with no UI or system frameworks. It reaches the system through small protocols, and the `Speak` target supplies the real adapters. [docs/architecture/v1.md](docs/architecture/v1.md) covers the state machine, delivery rules, and design decisions; an illustrated version is at [sbui056.github.io/speak](https://sbui056.github.io/speak/architecture/v1.html).
 
 ## Development
 
