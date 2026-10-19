@@ -63,6 +63,24 @@ struct TermCorrectionTests {
         #expect(correct("ask siobhan about kubernetes", ["Siobhan", "Kubernetes"]) == "ask Siobhan about Kubernetes")
     }
 
+    @Test func lowercaseTermKeepsTheSpokenCasing() {
+        #expect(correct("Commit the fix.", ["commit"]) == "Commit the fix.")
+        #expect(correct("please COMMIT", ["commit"]) == "please COMMIT")
+        #expect(correct("Pull request merged", ["pull request"]) == "Pull request merged")
+        #expect(correct("kubernetes is up", ["Kubernetes"]) == "Kubernetes is up")
+    }
+
+    @Test func lowercaseTermStillBlocksFuzzyOnItsWords() {
+        // "retry" matches exactly, so the near miss "retro" term never touches it.
+        #expect(correct("Retry it", ["retry", "Retro"], misspelled: ["retry"]) == "Retry it")
+    }
+
+    @Test func changedTermsAreUsedNextTime() {
+        #expect(correct("ask siobhan", ["Siobhan"]) == "ask Siobhan")
+        #expect(correct("ask siobhan", ["SIOBHAN"]) == "ask SIOBHAN")
+        #expect(correct("ask siobhan", []) == "ask siobhan")
+    }
+
     @Test func doesNotMatchInsideWords() {
         #expect(correct("the iosevka font", ["iOS"]) == "the iosevka font")
         #expect(correct("ios and macos", ["iOS"]) == "iOS and macos")

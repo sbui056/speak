@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Answers whether a word is misspelled, so near-miss correction never alters
 /// a real word ("there" must not become "Thera").
@@ -13,7 +14,10 @@ public func makeLiteral(_ raw: String, terms: [String], spelling: any SpellCheck
 }
 
 /// Rewrites dictionary terms to the user's exact spelling.
-/// - A whole-word or phrase match, ignoring case, takes the term's casing.
+/// - A whole-word or phrase match, ignoring case, takes the term's casing. A
+///   term with no capital letter keeps the spoken casing ("Commit the fix"
+///   stays capitalized for the term "commit"); it only shields the words from
+///   the near-miss pass.
 /// - A word one edit away from a single-word term of 5+ characters is replaced
 ///   only if `isMisspelled` says it isn't a real word.
 public func correctTerms(_ text: String, terms: [String], isMisspelled: (String) -> Bool) -> String {
@@ -21,15 +25,8 @@ public func correctTerms(_ text: String, terms: [String], isMisspelled: (String)
     let ns = text as NSString
     var edits: [(range: NSRange, term: String)] = []
 
-    // Longest first, so "New York Times" wins over "New York" at the same spot.
-    let byLength = terms.sorted { $0.count > $1.count }
-    let alternatives = byLength.map { term in
-        term.split(whereSeparator: \.isWhitespace)
-            .map { NSRegularExpression.escapedPattern(for: String($0)) }
-            .joined(separator: "\\s+")
-    }
-    let pattern = "(?<![\\p{L}\\p{N}_])(?:" + alternatives.map { "(\($0))" }.joined(separator: "|") + ")(?![\\p{L}\\p{N}_])"
-    if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+    let (byLength, regex) = termPattern(terms)
+    if let regex {
         for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             guard let group = (1..<match.numberOfRanges).first(where: { match.range(at: $0).location != NSNotFound })
             else { continue }
@@ -54,10 +51,30 @@ public func correctTerms(_ text: String, terms: [String], isMisspelled: (String)
     }
 
     let result = NSMutableString(string: text)
-    for edit in edits.sorted(by: { $0.range.location > $1.range.location }) {
+    for edit in edits.sorted(by: { $0.range.location > $1.range.location }) where edit.term.contains(where: \.isUppercase) {
         result.replaceCharacters(in: edit.range, with: edit.term)
     }
     return result as String
+}
+
+/// The last dictionary's alternation, kept because the same terms come back
+/// every dictation and a 200-term pattern is slow to compile.
+private let patternCache = Mutex<(terms: [String], byLength: [String], regex: NSRegularExpression?)?>(nil)
+
+/// The terms longest first, so "New York Times" wins over "New York" at the
+/// same spot, and one case-insensitive pattern with a group per term.
+private func termPattern(_ terms: [String]) -> (byLength: [String], regex: NSRegularExpression?) {
+    if let cached = patternCache.withLock({ $0 }), cached.terms == terms { return (cached.byLength, cached.regex) }
+    let byLength = terms.sorted { $0.count > $1.count }
+    let alternatives = byLength.map { term in
+        term.split(whereSeparator: \.isWhitespace)
+            .map { NSRegularExpression.escapedPattern(for: String($0)) }
+            .joined(separator: "\\s+")
+    }
+    let pattern = "(?<![\\p{L}\\p{N}_])(?:" + alternatives.map { "(\($0))" }.joined(separator: "|") + ")(?![\\p{L}\\p{N}_])"
+    let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    patternCache.withLock { $0 = (terms, byLength, regex) }
+    return (byLength, regex)
 }
 
 /// True when the words differ (ignoring case) by exactly one insertion,
