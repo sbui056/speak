@@ -149,6 +149,20 @@ struct RewriteLifecycleTests {
         #expect(h.rewriter.prewarms.isEmpty)
     }
 
+    @Test func polishedKeepsTheSentencesThatPassWhenOneDoesnt() async {
+        let h = polished()
+        h.transcriber.configure { $0.text = "Um, so the build is slow on CI. The demo is going to be like two minutes." }
+        h.rewriter.configure { $0.reply = "<cleaned>The build is slow on CI. The demo will be about two minutes.</cleaned>" }
+        var rejections: [RewriteRejection] = [], salvaged: [RewriteRejection] = []
+        h.controller.onRewriteRejected = { _, why in rejections.append(why) }
+        h.controller.onRewriteSalvaged = { why in salvaged.append(why) }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.controller.preview != nil })
+        #expect(h.controller.preview?.rewrite == "The build is slow on CI. The demo is going to be like two minutes.")
+        #expect(rejections.isEmpty)
+        #expect(salvaged == [.keep(.unrelated)])
+    }
+
     @Test func polishedCantUndoAReplacementPair() async {
         let h = polished()
         h.transcriber.configure { $0.text = "please open a pool request for the fix today" }

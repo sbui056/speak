@@ -212,10 +212,7 @@ func validateRewrite(_ output: String, literal: String, mode: RewriteMode, terms
 /// `validateRewrite` with the reason for a rejection.
 public func checkRewrite(_ output: String, literal: String, mode: RewriteMode, terms: [String],
                          unknownWords: Set<String> = [], language: String = "en") -> Result<String, RewriteRejection> {
-    guard output.ranges(of: "<cleaned>").count == 1, output.ranges(of: "</cleaned>").count == 1,
-          let open = output.firstRange(of: "<cleaned>"), let close = output.firstRange(of: "</cleaned>"),
-          open.upperBound <= close.lowerBound else { return .failure(.format) }
-    let cleaned = String(output[open.upperBound..<close.lowerBound]).trimmed
+    guard let cleaned = cleanedBlock(output) else { return .failure(.format) }
     let outWords = comparableWords(cleaned)
     let inWords = comparableWords(literal)
     guard !outWords.isEmpty, !inWords.isEmpty else { return .failure(.format) }
@@ -232,6 +229,14 @@ public func checkRewrite(_ output: String, literal: String, mode: RewriteMode, t
         return .failure(.keep(failure))
     }
     return .success(cleaned)
+}
+
+/// The trimmed content of the reply's one `<cleaned>` block, or nil if it doesn't have exactly one.
+func cleanedBlock(_ output: String) -> String? {
+    guard output.ranges(of: "<cleaned>").count == 1, output.ranges(of: "</cleaned>").count == 1,
+          let open = output.firstRange(of: "<cleaned>"), let close = output.firstRange(of: "</cleaned>"),
+          open.upperBound <= close.lowerBound else { return nil }
+    return String(output[open.upperBound..<close.lowerBound]).trimmed
 }
 
 /// Words Concise may leave out: fillers, lead-ins ("so what I wanted to say

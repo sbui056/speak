@@ -58,12 +58,18 @@ struct Corpus {
         let total = ContinuousClock.now - start
         let unknown = mode == .polished ? unknownWords(in: literal, spelling: SystemSpellChecker(), language: language) : []
         let checked = reply.map { checkRewrite($0.text, literal: literal, mode: mode, terms: terms, unknownWords: unknown, language: language) }
-        let accepted = try? checked?.get()
-        let why: String
+        var accepted = try? checked?.get()
+        var why: String
         switch checked {
         case .failure(let rejection)?: why = rejection.name
         case .success?: why = ""
         case nil: why = "error"
+        }
+        // As in a session: a rejected Polished reply keeps the sentences that pass on their own.
+        if case .failure(.keep)? = checked, let reply,
+           let text = salvageRewrite(reply.text, literal: literal, terms: terms, unknownWords: unknown, language: language) {
+            accepted = text
+            why = "salvaged." + why
         }
         let output = accepted ?? literal // a rejected reply falls back to the literal, as in a session
         let words = Set(output.lowercased().split { !$0.isLetter && !$0.isNumber && $0 != "'" }.map(String.init))
@@ -79,7 +85,7 @@ struct Corpus {
         let first = reply?.firstToken.map(Self.seconds) ?? "-"
         return "\(verdict)\t\(mode.rawValue)\t\(c.id)\tfirst=\(first)\ttotal=\(Self.seconds(total))"
             + "\tmissing=\(missing.joined(separator: ","))\t:: \(output.replacingOccurrences(of: "\n", with: " ⏎ "))"
-            + "\twhy=\(why)" + (accepted == nil ? "\traw=\((reply?.text ?? "").replacingOccurrences(of: "\n", with: " ⏎ "))" : "")
+            + "\twhy=\(why)" + (accepted == nil || why.hasPrefix("salvaged") ? "\traw=\((reply?.text ?? "").replacingOccurrences(of: "\n", with: " ⏎ "))" : "")
     }
 
     private static func seconds(_ d: Duration) -> String {
