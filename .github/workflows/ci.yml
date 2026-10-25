@@ -24,3 +24,5 @@ jobs:
         run: scripts/test.sh
       - name: Privacy check (no network APIs, no text in public logs)
         run: scripts/check-privacy.sh
+      - name: Latency report (scripts/latency.sh on a saved log)
+        run: scripts/test-latency.sh

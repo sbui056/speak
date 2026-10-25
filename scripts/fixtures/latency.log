@@ -1,0 +1,18 @@
+Timestamp                       Thread     Type        Activity             PID    TTL  
+2026-10-24 10:00:00.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:audio] mic closed buffers=20 dropped=0 tap_frames=4410 captured_ms=2000
+2026-10-24 10:00:00.500000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] timing dictation mode=polished preview=false 0.400s finalize=0.100s cleanup=0.001s first=0.200s rewrite=0.300s modwait=0.000s paste=0.003s
+2026-10-24 10:00:01.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] memory footprint=40.0MB after=session
+2026-10-24 10:01:00.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:audio] mic closed buffers=40 dropped=0 tap_frames=4410 captured_ms=4000
+2026-10-24 10:01:00.400000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:rewrite] rewrite rejected by the guard mode=polished why=keep.unrelated
+2026-10-24 10:01:00.500000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] timing dictation mode=polished preview=false 0.600s finalize=0.100s cleanup=0.001s first=0.300s rewrite=0.500s modwait=0.000s paste=0.002s
+2026-10-24 10:01:01.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] memory footprint=41.0MB after=session
+2026-10-24 10:02:00.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:audio] mic closed buffers=55 dropped=0 tap_frames=4410 captured_ms=5500
+2026-10-24 10:02:00.500000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] timing dictation mode=polished preview=false 0.800s finalize=0.100s cleanup=0.001s first=0.300s rewrite=0.700s modwait=0.000s paste=0.002s
+2026-10-24 10:03:00.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:audio] mic closed buffers=10 dropped=0 tap_frames=4410 captured_ms=1000
+2026-10-24 10:03:00.400000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:rewrite] rewrite rejected by the guard mode=polished why=keep.soundAlike
+2026-10-24 10:04:00.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:audio] mic closed buffers=250 dropped=0 tap_frames=4410 captured_ms=25000
+2026-10-24 10:04:02.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] timing dictation mode=polished preview=false 2.000s finalize=0.300s cleanup=0.002s first=0.600s rewrite=1.700s modwait=0.000s paste=0.002s
+2026-10-24 10:05:00.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:audio] mic closed buffers=30 dropped=0 tap_frames=4410 captured_ms=3000
+2026-10-24 10:05:00.200000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] timing dictation mode=literal preview=false 0.120s finalize=0.110s cleanup=0.001s modwait=0.000s paste=0.002s
+2026-10-24 10:06:00.200000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] timing dictation mode=literal preview=false 0.140s finalize=0.120s cleanup=0.001s modwait=0.000s paste=0.002s
+2026-10-24 10:06:01.000000-0700 0xa9b923   Default     0x0                  100    0    Speak: [io.github.sbui056.speak:session] memory footprint=42.5MB after=idle
