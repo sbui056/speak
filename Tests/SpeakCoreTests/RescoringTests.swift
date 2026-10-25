@@ -16,6 +16,15 @@ struct RescoringTests {
                         terms: ["cache"]) == "I paid in cash")
     }
 
+    @Test func capitalizedNameMidSentenceIsNotSwappedForALowercaseTerm() {
+        // The recognizer capitalizes "Maine" mid-sentence only when it heard a name;
+        // tech context ("push to Maine") is the pack's pairs' job, not rescoring's.
+        #expect(rescore([seg("My cousin lives in Portland, Maine.", alts: ["My cousin lives in Portland, main."])],
+                        terms: ["main"]) == "My cousin lives in Portland, Maine.")
+        // At the start of a sentence a capital says nothing about names.
+        #expect(rescore([seg("Ok. Cash is warm.", alts: ["Ok. Cache is warm."])], terms: ["cache"]) == "Ok. Cache is warm.")
+    }
+
     @Test func onlyTheReplacedWordsNeedLowConfidence() {
         let segment = RecognizedSegment(text: "I paid in cash", alternatives: ["I paid in cache"],
                                         confidences: [0.99, 0.99, 0.99, 0.6])

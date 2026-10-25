@@ -32,7 +32,8 @@ public struct RecognizedSegment: Equatable, Sendable {
 /// - it doesn't repeat a word side by side where the top reading didn't ("the, the");
 /// - for a term with no capital (an everyday word like "cache" or "main"), the
 ///   recognizer was unsure of every word it replaces (confidence below 0.95),
-///   so speech that clearly said "cash" stays "cash".
+///   so speech that clearly said "cash" stays "cash", and none of them is a
+///   name it capitalized mid-sentence ("Portland, Maine" stays Maine).
 /// Terms that compare as one character ("C++" → "c") never rescore: any lone
 /// letter would match them.
 public func rescore(_ segments: [RecognizedSegment], terms: [String]) -> String {
@@ -65,6 +66,7 @@ private func bestReading(_ segment: RecognizedSegment, terms: [RescoreTerm]) -> 
     let kept = found.filter { $0.count > 0 }
     guard !missing.isEmpty else { return segment.text }
     let topRepeats = adjacentRepeats(top)
+    let names = capitalizedMidSentence(segment.text)
     for alternative in segment.alternatives {
         let words = comparableWords(alternative)
         guard adjacentRepeats(words).isSubset(of: topRepeats),
@@ -73,7 +75,8 @@ private func bestReading(_ segment: RecognizedSegment, terms: [RescoreTerm]) -> 
         let changed = ops.filter { if case .same = $0 { false } else { true } }.count
         let inserted = ops.compactMap { if case .insert(let j) = $0 { j } else { nil } }
         let replaced = ops.compactMap { if case .delete(let i) = $0 { i } else { nil } }
-        let unsure = segment.confidences.map { c in replaced.allSatisfy { c[$0] < lowConfidence } } ?? false
+        let unsure = (segment.confidences.map { c in replaced.allSatisfy { c[$0] < lowConfidence } } ?? false)
+            && !replaced.contains { names[$0] }
         for term in missing where changed <= 2 * term.words.count + 1 && (term.hasCapital || unsure) {
             let spans = occurrences(of: term.words, in: words)
             if inserted.contains(where: { j in spans.contains { $0.contains(j) } }) {
@@ -82,6 +85,17 @@ private func bestReading(_ segment: RecognizedSegment, terms: [RescoreTerm]) -> 
         }
     }
     return segment.text
+}
+
+/// For each of `comparableWords(text)`: whether its token starts with a capital
+/// and isn't the first word of a sentence.
+private func capitalizedMidSentence(_ text: String) -> [Bool] {
+    var sentenceStart = true
+    return text.split(whereSeparator: \.isWhitespace).flatMap { token -> [Bool] in
+        let name = !sentenceStart && token.first(where: \.isLetter)?.isUppercase == true
+        sentenceStart = token.last.map { ".!?".contains($0) } ?? false
+        return Array(repeating: name, count: comparableWords(String(token)).count)
+    }
 }
 
 /// `text` trimmed, with `original`'s leading and trailing whitespace, so a
