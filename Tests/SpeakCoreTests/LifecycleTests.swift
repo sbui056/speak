@@ -88,6 +88,7 @@ struct LifecycleTests {
         h.audio.configure { $0.gated = true }
         await h.hold(for: .milliseconds(50))
         #expect(await eventually { h.phase == .idle })
+        #expect(await eventually { h.audio.waitingStarts > 0 }) // opening an empty gate is a no-op
         h.audio.openGate()
         #expect(await eventually { h.audio.opens == 1 && !h.audio.isOpen })
     }
@@ -99,6 +100,7 @@ struct LifecycleTests {
         // No audio was captured, so the clip counts as silent and is dropped quietly.
         #expect(await eventually { h.phase == .idle })
         #expect(h.hud == nil)
+        #expect(await eventually { h.audio.waitingStarts > 0 }) // opening an empty gate is a no-op
         h.audio.openGate()
         #expect(await eventually { h.audio.opens == 1 && !h.audio.isOpen })
         #expect(h.env.pastes.isEmpty)
@@ -109,6 +111,7 @@ struct LifecycleTests {
         h.audio.configure { $0.gated = true }
         h.hotkey.press()
         await h.clock.advance(by: .milliseconds(400))
+        #expect(await eventually { h.audio.waitingStarts > 0 }) // opening an empty gate is a no-op
         h.audio.openGate()
         await h.clock.advance(by: .milliseconds(600))
         h.hotkey.release()
@@ -135,6 +138,8 @@ struct LifecycleTests {
         let h = Harness()
         h.hotkey.press()
         await h.clock.advance(by: .milliseconds(500))
+        // An unplug before the start finishes has no listener and is lost (was a 1-in-30 flake).
+        #expect(await eventually { h.audio.isOpen })
         h.audio.unplug()
         await h.clock.advance(by: .milliseconds(50))
         #expect(await eventually { h.phase == .idle })
@@ -227,7 +232,8 @@ struct LifecycleTests {
         #expect(await h.clock.advance(until: { h.phase == .idle }))
         #expect(h.clock.elapsed - started >= Constants.deliver - .milliseconds(150))
         #expect(h.pasteboard.text == Harness.fakeText)
-        #expect(h.pasteboard.current.writes == [.transient, .normal])
+        // The rescue's write can land a turn after the phase goes idle (seen under load).
+        #expect(await eventually { h.pasteboard.current.writes == [.transient, .normal] })
         #expect(await eventually { h.hud == .result(.copied) })
         // The next dictation still works.
         h.env.update { $0.pastes = [] }
