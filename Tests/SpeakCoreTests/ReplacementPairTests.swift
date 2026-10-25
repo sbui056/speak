@@ -39,6 +39,13 @@ struct ReplacementPairTests {
         #expect(applyPairs("a b", pairs: [pair("a b", "c"), pair("c", "d")]) == "c")
     }
 
+    @Test func sharedLeadingWordKeepsItsSpokenCasing() {
+        // A context word on both sides stays as spoken, capital and all.
+        let pairs = [pair("the read me", "the README"), pair("pushed to maine", "pushed to main")]
+        #expect(applyPairs("The read me. Pushed to Maine", pairs: pairs) == "The README. Pushed to main")
+        #expect(applyPairs("see THE read me", pairs: pairs) == "see THE README")
+    }
+
     @Test func regexCharactersAreLiteral() {
         #expect(applyPairs("use c++ here", pairs: [pair("c++", "C++")]) == "use C++ here")
         #expect(applyPairs("use cxx here", pairs: [pair("c..", "C++")]) == "use cxx here")
@@ -108,6 +115,23 @@ struct ReplacementPairTests {
         let out = makeLiteral("open graph ickle now", terms: ["GraphQL"], pairs: [pair("graph ickle", "GraphiQL")],
                               spelling: FakeSpellChecker(misspelled: ["graphiql"]), language: "en")
         #expect(out == "Open GraphiQL now")
+    }
+
+    @MainActor @Test func spokenTextThatOnlyLooksLikeAPairOutputStillGetsTerms() {
+        // "the docker container" was spoken, not written by the pair, so the term recases it.
+        let pairs = [pair("darker container", "Docker container"), pair("the read me", "the README")]
+        let out = makeLiteral("start the docker container and update the readme", terms: ["Docker", "README"],
+                              pairs: pairs, spelling: FakeSpellChecker(), language: "en")
+        #expect(out == "Start the Docker container and update the README")
+        let written = makeLiteral("The read me", terms: ["README", "Read"], pairs: pairs,
+                                  spelling: FakeSpellChecker(), language: "en")
+        #expect(written == "The README")
+    }
+
+    @MainActor @Test func whatAPairWroteKeepsItsCasing() {
+        let out = makeLiteral("run swift format now", terms: ["Swift"], pairs: [pair("swift format", "swift-format")],
+                              spelling: FakeSpellChecker(), language: "en")
+        #expect(out == "Run swift-format now")
     }
 
     @MainActor @Test func worstCaseLiteralIsFast() {
@@ -196,7 +220,57 @@ struct TechTermsTests {
     }
 
     @Test func packPairsHearAtLeastTwoWords() {
-        for p in TechTerms.pairs { #expect(p.heard.split(separator: " ").count >= 2, "\(p.heard)") }
+        // A lone heard word is allowed only when it isn't an English word.
+        let nonWords: Set = ["frederix"]
+        for p in TechTerms.pairs where !nonWords.contains(p.heard.lowercased()) {
+            #expect(p.heard.split(separator: " ").count >= 2, "\(p.heard)")
+        }
+    }
+
+    // Misheard on real voice (build 71). Each fix needs tech context next to the
+    // everyday word, so the same word in plain English stays as spoken.
+    @Test(arguments: [
+        ("Run it with darker compose.", "Run it with Docker Compose."),
+        ("Pull it from darker hub", "Pull it from Docker Hub"),
+        ("start the darker container", "start the Docker container"),
+        ("stop all darker containers", "stop all Docker containers"),
+        ("update the darker file", "update the Dockerfile"),
+        ("I pushed to Maine.", "I pushed to main."),
+        ("Merge it into Maine after review", "Merge it into main after review"),
+        ("merged into Maine", "merged into main"),
+        ("rebase on Maine first", "rebase on main first"),
+        ("check out the Maine branch", "check out the main branch"),
+        ("Fixed main, see I should be green.", "Fixed main, CI should be green."),
+        ("Fixed main see I should be green.", "Fixed main CI should be green."),
+        ("the see I is red", "the CI is red"),
+        ("See I is failing again", "CI is failing again"),
+        ("add a step to the see I pipeline", "add a step to the CI pipeline"),
+        ("update the read me", "update the README"),
+        ("The read me is out of date.", "The README is out of date."),
+        ("add a read me and our read me badge", "add a README and our README badge"),
+        ("write a Frederix for that", "write a regex for that"),
+    ])
+    func packFixesTechMishearings(_ heard: String, _ fixed: String) {
+        #expect(applyPairs(heard, pairs: TechTerms.pairs) == fixed)
+    }
+
+    @Test(arguments: [
+        "I'll really try to keep the kitchen clean.",
+        "The room got darker as the sun went down.",
+        "Use a darker image for the background.",
+        "It gets darker in winter.",
+        "We drove up to Portland, Maine, last summer.",
+        "She moved to Maine in May.",
+        "The Maine coast is lovely.",
+        "Read me a story before bed.",
+        "Can you read me the list?",
+        "I see, I think that works.",
+        "You'll see I was right.",
+        "See, I told you.",
+        "See, I should be more careful.",
+    ])
+    func packNeverRewritesEverydaySentences(_ text: String) {
+        #expect(applyPairs(text, pairs: TechTerms.pairs) == text)
     }
 
     @Test func packFillsUpToTheLimitAndCountsTheRest() throws {

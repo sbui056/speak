@@ -122,6 +122,22 @@ struct TermCorrectionTests {
         #expect(correct("ask Shivon", ["Siobhan"], misspelled: ["shivon"]) == "ask Shivon")
     }
 
+    @Test func longTermsAllowTwoEdits() {
+        // Real voice, build 71: "Kubernettis" is two edits from "Kubernetes".
+        #expect(correct("deploy to Kubernettis", ["Kubernetes"], misspelled: ["kubernettis"]) == "deploy to Kubernetes")
+        #expect(correct("open typscrip files", ["TypeScript"], misspelled: ["typscrip"]) == "open TypeScript files")
+        // Still only misspelled words, and nine characters is too short for two.
+        #expect(correct("deploy to Kubernettis", ["Kubernetes"]) == "deploy to Kubernettis")
+        #expect(correct("ask Siobhxnn", ["Siobhan"], misspelled: ["siobhxnn"]) == "ask Siobhxnn")
+        #expect(correct("use Tarrafarm", ["Terraform"], misspelled: ["tarrafarm"]) == "use Tarrafarm")
+        // Three edits is a different word.
+        #expect(correct("deploy to Kubernotties", ["Kubernetes"], misspelled: ["kubernotties"]) == "deploy to Kubernotties")
+    }
+
+    @Test func aOneEditMatchBeatsATwoEditOne() {
+        #expect(correct("open Javascripts", ["JavaScript", "JavaScripters"], misspelled: ["javascripts"]) == "open JavaScript")
+    }
+
     @Test func fuzzySkipsAmbiguousMatches() {
         #expect(correct("Marta", ["Marla", "Marga"], misspelled: ["marta"]) == "Marta")
     }
