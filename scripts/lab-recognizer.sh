@@ -6,9 +6,10 @@
 # Usage: scripts/lab-recognizer.sh [tsv-file]   (default: score only)
 # SPEAK_LAB_TRIM=1 cuts each clip right after the last sound (a fast key release).
 # SPEAK_LAB_PACK=1 uses the tech-term pack as the dictionary instead of the lab terms.
+# SPEAK_LAB_SENTENCES=<file> speaks another list, e.g. scripts/lab/tech-words.txt.
 set -eu
 cd "$(dirname "$0")/.."
-sentences=scripts/lab/sentences.txt
+sentences=${SPEAK_LAB_SENTENCES:-scripts/lab/sentences.txt}
 swift build -c debug >/dev/null
 bin="$(swift build -c debug --show-bin-path)/Speak"
 out=${1:-$(mktemp -t speak-lab)}

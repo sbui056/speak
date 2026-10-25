@@ -24,11 +24,14 @@ public func makeLiteral(_ raw: String, terms: [String], pairs: [ReplacementPair]
 ///   term with no capital letter keeps the spoken casing ("Commit the fix"
 ///   stays capitalized for the term "commit"); it only shields the words from
 ///   the near-miss pass.
-/// - A word one edit away from a single-word term of 5+ characters is replaced
-///   only if `isMisspelled` says it isn't a real word.
+/// - A word one edit away from a single-word term of 5+ characters (two edits
+///   for 10+ characters, "Kubernettis" → "Kubernetes") is replaced only if
+///   `isMisspelled` says it isn't a real word. The closest term wins.
 /// - `shielding` (what replacement pairs wrote) is never near-miss corrected
 ///   and keeps its casing, except where it is also a term: then the term's
-///   casing wins ("github" written by a pair becomes the term "GitHub").
+///   casing wins ("github" written by a pair becomes the term "GitHub"). Text
+///   that matches a shield only ignoring case was spoken, not written by the
+///   pair, so the terms apply inside it.
 public func correctTerms(_ text: String, terms: [String], shielding: [String] = [],
                          isMisspelled: (String) -> Bool) -> String {
     guard !terms.isEmpty, !text.isEmpty else { return text }
@@ -40,13 +43,21 @@ public func correctTerms(_ text: String, terms: [String], shielding: [String] = 
     let shields = shielding.filter { !termSet.contains($0.lowercased()) }
     let (byLength, regex) = termPattern(terms + shields)
     let shieldSet = Set(shields.map { $0.lowercased() })
-    if let regex {
-        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+    func addTermMatches(_ regex: NSRegularExpression?, _ byLength: [String], in range: NSRange) {
+        for match in regex?.matches(in: text, range: range) ?? [] {
             guard let term = matchedPhrase(match, in: byLength) else { continue }
+            if shieldSet.contains(term.lowercased()), !sameText(ns.substring(with: match.range), term) {
+                // Spoken words that only look like a pair's output ("the docker
+                // container" for "Docker container"): the terms apply inside.
+                let termsOnly = termPattern(terms)
+                addTermMatches(termsOnly.regex, termsOnly.byLength, in: match.range)
+                continue
+            }
             // A term with no capital keeps the spoken casing.
             edits.append((match.range, term, !shieldSet.contains(term.lowercased()) && term.contains(where: \.isUppercase)))
         }
     }
+    addTermMatches(regex, byLength, in: NSRange(location: 0, length: ns.length))
 
     // Lowercased once up front: this loop runs words × terms times.
     let fuzzyTerms = terms.filter { $0.count >= 5 && !$0.contains(where: \.isWhitespace) }
@@ -57,7 +68,10 @@ public func correctTerms(_ text: String, terms: [String], shielding: [String] = 
             if exact.contains(where: { NSIntersectionRange($0, match.range).length > 0 }) { continue }
             let word = ns.substring(with: match.range)
             let chars = Array(word.lowercased())
-            let near = fuzzyTerms.filter { isOneEditAway(chars, $0.chars) }.map(\.term)
+            var near = fuzzyTerms.filter { isOneEditAway(chars, $0.chars) }.map(\.term)
+            if near.isEmpty {
+                near = fuzzyTerms.filter { $0.chars.count >= 10 && isTwoEditsAway(chars, $0.chars) }.map(\.term)
+            }
             // Two terms equally close is a guess; leave the word alone.
             guard near.count == 1, isMisspelled(word) else { continue }
             edits.append((match.range, near[0], true))
@@ -69,6 +83,12 @@ public func correctTerms(_ text: String, terms: [String], shielding: [String] = 
         result.replaceCharacters(in: edit.range, with: edit.term)
     }
     return result as String
+}
+
+/// True when `text` is `written` exactly, or with its first letter capitalized
+/// (a pair's output at the start of a sentence).
+private func sameText(_ text: String, _ written: String) -> Bool {
+    text == written || text == written.prefix(1).uppercased() + written.dropFirst()
 }
 
 /// The last few alternations (terms; terms plus pair outputs; pairs' heard
@@ -125,4 +145,20 @@ private func isOneEditAway(_ x: [Character], _ y: [Character]) -> Bool {
         if x.count > y.count { i += 1 } else if x.count < y.count { j += 1 } else { i += 1; j += 1 }
     }
     return edits + (x.count - i) + (y.count - j) <= 1
+}
+
+/// True when the words differ by exactly two insertions, deletions, or
+/// substitutions (Levenshtein distance 2).
+private func isTwoEditsAway(_ x: [Character], _ y: [Character]) -> Bool {
+    guard !x.isEmpty, !y.isEmpty, abs(x.count - y.count) <= 2, !isOneEditAway(x, y) else { return false }
+    var previous = Array(0...y.count)
+    for i in 1...x.count {
+        var row = [i] + Array(repeating: 0, count: y.count)
+        for j in 1...y.count {
+            row[j] = min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + (x[i - 1] == y[j - 1] ? 0 : 1))
+        }
+        if row.min()! > 2 { return false }
+        previous = row
+    }
+    return previous[y.count] == 2
 }

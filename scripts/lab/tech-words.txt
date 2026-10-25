@@ -1,0 +1,11 @@
+# Tech words misheard on real voice (scripts/lab-recognizer.sh with
+# SPEAK_LAB_SENTENCES=scripts/lab/tech-words.txt). Targets marked [[...]];
+# CONTROL: lines use the same sounds in everyday English and must stay as spoken.
+Start the [[Docker container]] with [[Docker Compose]] and check the [[Dockerfile]].
+Write a [[regex]] that strips the prefix, then update the [[README]].
+I [[pushed to main]] and [[CI]] is green, so deploy it to [[Kubernetes]].
+Rebase on [[main]] before you merge into [[main]].
+CONTROL: The room got [[darker]] as the sun went down.
+CONTROL: We drove up to Portland, [[Maine]], last summer.
+CONTROL: Please [[read me]] a story before bed.
+CONTROL: [[I see]], [[I think]] that works.
