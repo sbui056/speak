@@ -31,6 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let missing = await app.start()
             #if DEBUG
             if let soak = app.soak { return await soak.run(app.controller) }
+            if let cycle = WindowCycle(environment: ProcessInfo.processInfo.environment) {
+                return await cycle.run(settings: { settings.show() }, dictionary: { dictionary.show() },
+                                       history: { dictionary.show(.history) })
+            }
             #endif
             // Settings opens once per launch while anything is missing.
             if missing { settings.show() }
