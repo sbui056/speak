@@ -47,6 +47,8 @@ public enum TimerKind: Equatable, Sendable {
     case deliver
     /// Periodic hotkey state poll that catches a lost key-up.
     case keyPoll
+    /// Keeps the rewrite model warm while a Concise or Polished dictation is held.
+    case prewarm
 }
 
 /// Milestones of one dictation, reported for timing. Never carries text.

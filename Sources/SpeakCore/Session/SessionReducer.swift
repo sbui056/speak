@@ -124,7 +124,9 @@ struct Reducer {
              .startTimer(id, .sttStart, after: Constants.sttStart),
              .startTimer(id, .cap, after: Constants.cap),
              .startTimer(id, .keyPoll, after: keyPollInterval))
-        if state.sessionMode != .literal { emit(.prewarmRewriter(state.sessionMode)) }
+        if state.sessionMode != .literal {
+            emit(.prewarmRewriter(state.sessionMode), .startTimer(id, .prewarm, after: Constants.prewarmRefresh))
+        }
     }
 
     /// Release (or the cap) ends capture: too short or silent clips are dropped
@@ -191,6 +193,8 @@ struct Reducer {
             endCapture(at: nil)
         case (.keyPoll, .listening):
             emit(.startTimer(id, .keyPoll, after: keyPollInterval))
+        case (.prewarm, .listening):
+            emit(.prewarmRewriter(state.sessionMode), .startTimer(id, .prewarm, after: Constants.prewarmRefresh))
         case (.finalize, .finalizing):
             // Once the transcript is in, the dictionary step is local and can't hang.
             if !state.preparingLiteral { abandon(fallingBackTo: state.lastPartial) }

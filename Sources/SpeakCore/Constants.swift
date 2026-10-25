@@ -37,6 +37,10 @@ public enum Constants {
     ]
     /// A rewrite still running after this long is dropped and the literal text used.
     public static let rewriteTimeout: Duration = .milliseconds(2500)
+    /// While a Concise or Polished dictation is held, the model is prewarmed again this
+    /// often: it idles down about 5 s after the last use, which made every longer
+    /// dictation's rewrite start about 0.3 s later.
+    public static let prewarmRefresh: Duration = .seconds(3)
     /// A transcriber that hasn't consumed any audio by then has stalled; the dictation is abandoned.
     public static let sttStart: Duration = .seconds(3)
     /// Maximum partial-text refresh rate in the HUD (Hz).

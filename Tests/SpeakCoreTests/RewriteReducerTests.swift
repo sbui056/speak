@@ -24,9 +24,13 @@ struct RewriteReducerTests {
 
     @Test func listeningInARewriteModePrewarms() {
         let (_, effects) = run([.rewriteSettings(mode: .concise, preview: .whenChanged), .pressed(at: ms(0)), .timer(s1, .hold)])
-        #expect(effects.last == .prewarmRewriter(.concise))
+        #expect(effects.suffix(2) == [.prewarmRewriter(.concise), .startTimer(s1, .prewarm, after: Constants.prewarmRefresh)])
+        let (_, refreshed) = run([.rewriteSettings(mode: .concise, preview: .whenChanged), .pressed(at: ms(0)),
+                                  .timer(s1, .hold), .timer(s1, .prewarm)])
+        #expect(refreshed.suffix(2) == [.prewarmRewriter(.concise), .startTimer(s1, .prewarm, after: Constants.prewarmRefresh)])
         let (_, literalEffects) = run([.pressed(at: ms(0)), .timer(s1, .hold)])
         #expect(!literalEffects.contains(.prewarmRewriter(.literal)))
+        #expect(!literalEffects.contains(.startTimer(s1, .prewarm, after: Constants.prewarmRefresh)))
     }
 
     @Test func modeIsTakenAtPress() {

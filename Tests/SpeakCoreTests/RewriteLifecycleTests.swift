@@ -133,6 +133,22 @@ struct RewriteLifecycleTests {
         #expect(rejections == [.keep(.lostProtected)])
     }
 
+    @Test func longHoldKeepsTheModelWarmUntilRelease() async {
+        // The on-device model idles down a few seconds after the key-press prewarm;
+        // a long dictation would otherwise start its rewrite cold.
+        let h = polished()
+        await h.hold(for: Constants.hold + Constants.prewarmRefresh * 2 + .milliseconds(500))
+        #expect(h.rewriter.prewarms == Array(repeating: rewriteInstructions(.polished), count: 3))
+        await h.clock.advance(by: Constants.prewarmRefresh * 2)
+        #expect(h.rewriter.prewarms.count == 3)
+    }
+
+    @Test func literalHoldNeverPrewarms() async {
+        let h = Harness()
+        await h.hold(for: Constants.prewarmRefresh * 3)
+        #expect(h.rewriter.prewarms.isEmpty)
+    }
+
     @Test func polishedCantUndoAReplacementPair() async {
         let h = polished()
         h.transcriber.configure { $0.text = "please open a pool request for the fix today" }
