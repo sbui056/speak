@@ -4,8 +4,10 @@
 # would), then summarizes. Needs Apple Intelligence on. Re-run after any prompt
 # change or macOS update and compare with an earlier report.
 # A case may set "language" (e.g. "es_ES"), as a session passes it. Rejected replies
-# end with raw=<reply>.
+# end with raw=<reply>, as do salvaged ones (why=salvaged.<rejection>: the sentences that
+# passed kept, the rest literal).
 # Usage: scripts/corpus.sh [report-file]   (default: print only)
+#        CASES=scripts/corpus/rewrite-long.json scripts/corpus.sh   (long, multi-sentence dictations)
 set -eu
 cd "$(dirname "$0")/.."
 report=${1:-}
@@ -14,7 +16,7 @@ swift build -c debug >/dev/null
 bin="$(swift build -c debug --show-bin-path)/Speak"
 out=$(mktemp -t speak-corpus)
 trap 'rm -f "$out"' EXIT
-SPEAK_CORPUS=scripts/corpus/rewrite.json "$bin" >"$out" 2>/dev/null
+SPEAK_CORPUS=${CASES:-scripts/corpus/rewrite.json} "$bin" >"$out" 2>/dev/null
 grep -q . "$out" || { echo "corpus: no results" >&2; exit 1; }
 grep -v -E "^ok	" "$out" || true
 awk -F '\t' '

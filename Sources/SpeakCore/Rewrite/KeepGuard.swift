@@ -59,6 +59,7 @@ func keepGuard(literal: String, cleaned: String, terms: [String], unknownWords: 
     let kept = Set(after.map(\.key))
     var fixes = 0
     for run in changedRuns(before.map(\.key), after.map(\.key)) {
+        if run.inserted.isEmpty, run.deleted.allSatisfy({ spokenSymbols[$0].map(cleaned.contains) == true }) { continue }
         switch classify(run.deleted, run.inserted, keptWords: kept, capitalized: capitalized) {
         case .grammar: continue
         case .soundAlike: fixes += 1
@@ -184,6 +185,12 @@ private func isNumberToken(_ tokens: [KeepToken], _ i: Int, spoken: Bool) -> Boo
     }
     return numberValues[key] != nil || ordinalValues[key] != nil
 }
+
+/// Symbols said aloud in paths, file names, and flags ("utils slash time dot ts").
+/// Dropping the word is a cleanup when the reply writes the symbol.
+private let spokenSymbols: [String: String] = [
+    "slash": "/", "backslash": "\\", "dot": ".", "dash": "-", "hyphen": "-", "underscore": "_", "colon": ":",
+]
 
 /// "I" and its contractions with the apostrophe dropped: always capitalized, never a name.
 private let firstPersonI: Set<String> = ["i", "im", "ill", "ive", "id"]

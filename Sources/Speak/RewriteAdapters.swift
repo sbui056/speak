@@ -23,11 +23,18 @@ final class FoundationRewriter: Rewriter {
         }
     }
 
+    /// Called at key press and again every few seconds while the key is held: the
+    /// model idles down about 5 s after its last use. A refresh prewarms the
+    /// waiting session again rather than replacing it; once a rewrite has taken
+    /// it, a late refresh prepares a fresh one for the next dictation.
     func prewarm(instructions: String) async {
         guard model.isAvailable else { return }
-        let session = LanguageModelSession(model: model, tools: [], instructions: instructions)
-        session.prewarm(promptPrefix: Prompt(transcriptPrefix))
-        ready.withLock { $0 = (instructions, session) }
+        ready.withLock { ready in
+            let session = ready.flatMap { $0.instructions == instructions ? $0.session : nil }
+                ?? LanguageModelSession(model: model, tools: [], instructions: instructions)
+            session.prewarm(promptPrefix: Prompt(transcriptPrefix))
+            ready = (instructions, session)
+        }
     }
 
     func respond(to prompt: RewritePrompt) async throws -> RewriteReply {

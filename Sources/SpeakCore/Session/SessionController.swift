@@ -33,6 +33,8 @@ public final class SessionController {
     @ObservationIgnored public var onFinished: ((String) -> Void)?
     /// Called when the model's reply failed validation, with why, for logging. Never sees text.
     @ObservationIgnored public var onRewriteRejected: ((RewriteMode, RewriteRejection) -> Void)?
+    /// A Polished reply the keep guard rejected whole, kept sentence by sentence instead. Never sees text.
+    @ObservationIgnored public var onRewriteSalvaged: ((RewriteRejection) -> Void)?
     /// Called at each timed milestone of the current dictation. Never sees text.
     @ObservationIgnored public var onStage: ((SessionStage) -> Void)?
     /// Called after every transition, for logging. Never sees transcript text.
@@ -267,7 +269,14 @@ public final class SessionController {
                 switch checkRewrite(reply.text, literal: literal, mode: mode, terms: terms, unknownWords: unknown,
                                     language: language) {
                 case .success(let text): accepted = text
-                case .failure(let why): self?.onRewriteRejected?(mode, why)
+                case .failure(let why):
+                    if case .keep = why, let text = salvageRewrite(reply.text, literal: literal, terms: terms,
+                                                                   unknownWords: unknown, language: language) {
+                        accepted = text
+                        self?.onRewriteSalvaged?(why)
+                    } else {
+                        self?.onRewriteRejected?(mode, why)
+                    }
                 }
             }
             // A reply after the watchdog gave up belongs to no timed dictation.

@@ -133,6 +133,36 @@ struct RewriteLifecycleTests {
         #expect(rejections == [.keep(.lostProtected)])
     }
 
+    @Test func longHoldKeepsTheModelWarmUntilRelease() async {
+        // The on-device model idles down a few seconds after the key-press prewarm;
+        // a long dictation would otherwise start its rewrite cold.
+        let h = polished()
+        await h.hold(for: Constants.hold + Constants.prewarmRefresh * 2 + .milliseconds(500))
+        #expect(h.rewriter.prewarms == Array(repeating: rewriteInstructions(.polished), count: 3))
+        await h.clock.advance(by: Constants.prewarmRefresh * 2)
+        #expect(h.rewriter.prewarms.count == 3)
+    }
+
+    @Test func literalHoldNeverPrewarms() async {
+        let h = Harness()
+        await h.hold(for: Constants.prewarmRefresh * 3)
+        #expect(h.rewriter.prewarms.isEmpty)
+    }
+
+    @Test func polishedKeepsTheSentencesThatPassWhenOneDoesnt() async {
+        let h = polished()
+        h.transcriber.configure { $0.text = "Um, so the build is slow on CI. The demo is going to be like two minutes." }
+        h.rewriter.configure { $0.reply = "<cleaned>The build is slow on CI. The demo will be about two minutes.</cleaned>" }
+        var rejections: [RewriteRejection] = [], salvaged: [RewriteRejection] = []
+        h.controller.onRewriteRejected = { _, why in rejections.append(why) }
+        h.controller.onRewriteSalvaged = { why in salvaged.append(why) }
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.controller.preview != nil })
+        #expect(h.controller.preview?.rewrite == "The build is slow on CI. The demo is going to be like two minutes.")
+        #expect(rejections.isEmpty)
+        #expect(salvaged == [.keep(.unrelated)])
+    }
+
     @Test func polishedCantUndoAReplacementPair() async {
         let h = polished()
         h.transcriber.configure { $0.text = "please open a pool request for the fix today" }

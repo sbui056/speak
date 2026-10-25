@@ -187,6 +187,9 @@ final class AppModel {
         controller.onRewriteRejected = { mode, why in
             Log.rewrite.notice("rewrite rejected by the guard mode=\(mode.rawValue, privacy: .public) why=\(why.name, privacy: .public)")
         }
+        controller.onRewriteSalvaged = { why in
+            Log.rewrite.notice("rewrite salvaged by sentence why=\(why.name, privacy: .public)")
+        }
         sendRewriteSettings()
         Task { await controller.run() }
         observeSystem()
