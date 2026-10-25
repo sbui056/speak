@@ -122,7 +122,8 @@ All decisions live in `SpeakCore`, a pure state machine with no UI or system fra
 ```sh
 scripts/test.sh            # SpeakCore tests, with fakes for audio, speech, keys, and the model
 scripts/check-privacy.sh   # no networking, no text in logs, SpeakCore stays framework-free
-scripts/latency.sh         # latency per mode and stage, plus memory, from Speak's logs
+scripts/latency.sh         # latency per mode and stage, plus memory, from Speak's logs;
+                           # also by utterance length (<3 s to 20 s+), with guard rejections
 scripts/soak.sh            # 100 fake dictations in a debug build; memory growth and leaks
 scripts/corpus.sh          # 55 fixed dictations through the real model; flags dropped meaning
 scripts/lab-recognizer.sh  # recognizer accuracy on synthetic speech from system voices
