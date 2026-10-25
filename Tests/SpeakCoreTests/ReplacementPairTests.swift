@@ -221,7 +221,7 @@ struct TechTermsTests {
 
     @Test func packPairsHearAtLeastTwoWords() {
         // A lone heard word is allowed only when it isn't an English word.
-        let nonWords: Set = ["frederix"]
+        let nonWords: Set = ["frederix", "kubernati"]
         for p in TechTerms.pairs where !nonWords.contains(p.heard.lowercased()) {
             #expect(p.heard.split(separator: " ").count >= 2, "\(p.heard)")
         }
@@ -249,6 +249,11 @@ struct TechTermsTests {
         ("The read me is out of date.", "The README is out of date."),
         ("add a read me and our read me badge", "add a README and our README badge"),
         ("write a Frederix for that", "write a regex for that"),
+        // Build 91 verify run.
+        ("Can you add a doctor file for the API service?", "Can you add a Dockerfile for the API service?"),
+        ("Deploy it to the Kubernati clusters", "Deploy it to the Kubernetes clusters"),
+        ("My cousin lives in Portland, main.", "My cousin lives in Portland, Maine."),
+        ("Can you bump the cash key, rerun the pipeline", "Can you bump the cache key, rerun the pipeline"),
     ])
     func packFixesTechMishearings(_ heard: String, _ fixed: String) {
         #expect(applyPairs(heard, pairs: TechTerms.pairs) == fixed)
@@ -268,6 +273,9 @@ struct TechTermsTests {
         "You'll see I was right.",
         "See, I told you.",
         "See, I should be more careful.",
+        "The doctor filed the report on Monday.",
+        "Keep the cash in a safe.",
+        "Portland is the main city in the state.",
     ])
     func packNeverRewritesEverydaySentences(_ text: String) {
         #expect(applyPairs(text, pairs: TechTerms.pairs) == text)

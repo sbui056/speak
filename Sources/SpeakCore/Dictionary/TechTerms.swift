@@ -10,7 +10,7 @@ public enum TechTerms {
         "staging", "endpoint", "API", "JSON", "YAML", "CI", "CD", "SDK", "CLI", "URL", "HTTP", "HTTPS",
         "SQL", "PostgreSQL", "Postgres", "MySQL", "SQLite", "Redis", "GraphQL", "gRPC", "OAuth", "JWT",
         "webhook", "middleware", "refactor", "linter", "regex", "localhost", "backend", "frontend", "async",
-        "Kubernetes", "kubectl", "Docker", "Terraform", "AWS", "GitHub", "GitLab", "TypeScript", "JavaScript",
+        "Kubernetes", "kubectl", "Docker", "Docker Compose", "Terraform", "AWS", "GitHub", "GitLab", "TypeScript", "JavaScript",
         "Python", "SwiftUI", "Xcode", "iOS", "macOS", "npm", "Node.js", "Next.js", "Claude", "LLM", "prompt",
         "PR", "repo", "README", "UI", "UX", "VS Code", "config", "backoff", "timeout", "idempotent",
     ]
@@ -31,6 +31,7 @@ public enum TechTerms {
         ReplacementPair(heard: "darker container", write: "Docker container"),
         ReplacementPair(heard: "darker containers", write: "Docker containers"),
         ReplacementPair(heard: "darker file", write: "Dockerfile"),
+        ReplacementPair(heard: "doctor file", write: "Dockerfile"),
         ReplacementPair(heard: "push to maine", write: "push to main"),
         ReplacementPair(heard: "pushed to maine", write: "pushed to main"),
         ReplacementPair(heard: "merge into maine", write: "merge into main"),
@@ -38,6 +39,8 @@ public enum TechTerms {
         ReplacementPair(heard: "merge it into maine", write: "merge it into main"),
         ReplacementPair(heard: "rebase on maine", write: "rebase on main"),
         ReplacementPair(heard: "maine branch", write: "main branch"),
+        // The reverse: a recognizer that leans on "main" can write it for the state.
+        ReplacementPair(heard: "portland, main", write: "Portland, Maine"),
         ReplacementPair(heard: "see i should be green", write: "CI should be green"),
         ReplacementPair(heard: "see, i should be green", write: "CI should be green"),
         ReplacementPair(heard: "see i is", write: "CI is"),
@@ -47,5 +50,7 @@ public enum TechTerms {
         ReplacementPair(heard: "a read me", write: "a README"),
         ReplacementPair(heard: "our read me", write: "our README"),
         ReplacementPair(heard: "frederix", write: "regex"),
+        ReplacementPair(heard: "kubernati", write: "Kubernetes"),
+        ReplacementPair(heard: "cash key", write: "cache key"),
     ]
 }

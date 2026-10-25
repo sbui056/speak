@@ -63,6 +63,11 @@ struct TermCorrectionTests {
         #expect(correct("ask siobhan about kubernetes", ["Siobhan", "Kubernetes"]) == "ask Siobhan about Kubernetes")
     }
 
+    @Test func packHasDockerComposeCasing() {
+        // Build 91: "Docker compose" came out with a lowercase c.
+        #expect(correct("Spin it up with Docker compose.", TechTerms.terms) == "Spin it up with Docker Compose.")
+    }
+
     @Test func lowercaseTermKeepsTheSpokenCasing() {
         #expect(correct("Commit the fix.", ["commit"]) == "Commit the fix.")
         #expect(correct("please COMMIT", ["commit"]) == "please COMMIT")
