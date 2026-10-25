@@ -41,6 +41,22 @@ struct KeepGuardTests {
         #expect(check(literal, cleaned) == nil)
     }
 
+    @Test(arguments: [
+        ("Can you write tests for utils slash time dot ts?", "Can you write tests for utils/time.ts?"),
+        ("The format is day slash month slash year.", "The format is day/month/year."),
+        ("Name it user underscore id.", "Name it user_id."),
+        ("Use the dash dash force flag.", "Use the --force flag."),
+    ])
+    func spokenSymbolsWrittenAsSymbolsPass(_ literal: String, _ cleaned: String) {
+        // Prompts to coding tools spell out paths and flags; writing the symbol is a cleanup.
+        #expect(check(literal, cleaned) == nil)
+    }
+
+    @Test func spokenSymbolDroppedWithoutItsSymbolIsRejected() {
+        #expect(check("The slash key is broken.", "The key is broken.") == .unrelated)
+        #expect(check("Draw a dash under the title", "Draw a line under the title.") == .unrelated)
+    }
+
     @Test func inflectedTermStillCountsAsKept() {
         #expect(check("the script deploy to staging every night", "The script deploys to staging every night.",
                       terms: ["deploy", "staging"]) == nil)
