@@ -2,10 +2,10 @@ import AppKit
 import SpeakCore
 import SwiftUI
 
-/// The dictionary editor, in its own window.
+/// The dictionary editor, in its own window, built on each open.
 @MainActor
 final class DictionaryWindowController {
-    private var window: NSWindow?
+    private let slot = WindowSlot(name: "dictionary")
     private let dictionary: DictionaryModel
     private let history: HistoryModel
     private let tab = DictionaryTab()
@@ -17,20 +17,14 @@ final class DictionaryWindowController {
 
     func show(_ which: DictionaryTab.Which = .dictionary) {
         tab.selected = which
-        if window == nil {
+        slot.show {
             let root = DictionaryTabs(dictionary: dictionary, history: history, tab: tab)
             let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "Speak Dictionary"
             window.styleMask = [.titled, .closable, .resizable]
-            window.isReleasedWhenClosed = false
-            window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             window.setContentSize(NSSize(width: 420, height: 440))
-            window.center()
-            self.window = window
+            return window
         }
-        NSApp.activate()
-        window?.makeKeyAndOrderFront(nil)
-        window?.orderFrontRegardless()
     }
 }
 

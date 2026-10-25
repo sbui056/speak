@@ -2,11 +2,10 @@ import AppKit
 import SpeakCore
 import SwiftUI
 
-/// Hosts the SwiftUI settings form in a regular window. An accessory app has to
-/// activate itself explicitly, or the window opens behind the frontmost app.
+/// Hosts the SwiftUI settings form in a regular window, built on each open.
 @MainActor
 final class SettingsWindowController {
-    private var window: NSWindow?
+    private let slot = WindowSlot(name: "settings")
     private let app: AppModel
     private let openHistory: () -> Void
 
@@ -16,22 +15,12 @@ final class SettingsWindowController {
     }
 
     func show() {
-        if window == nil {
+        slot.show {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(app: app, openHistory: openHistory)))
             window.title = "Speak Settings"
             window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            // Without these, a menu-bar app's window opens on whichever Space it
-            // last lived on (or the desktop behind a full-screen app), not the
-            // one the user is looking at.
-            window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-            window.center()
-            self.window = window
+            return window
         }
-        NSApp.activate()
-        window?.makeKeyAndOrderFront(nil)
-        // Activation is cooperative and can be declined; still put the window on top.
-        window?.orderFrontRegardless()
     }
 }
 
