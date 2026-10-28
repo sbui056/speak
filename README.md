@@ -91,12 +91,16 @@ Settings covers permissions, the shortcut key, language, Apple Intelligence stat
 
 ## Performance
 
-Time from releasing the key to text at the cursor, on an M2 MacBook Air, from Speak's own timing logs:
+Time from releasing the key to text at the cursor, on an M2 MacBook Air, from Speak's own timing logs over three days of real use. Polished time grows with how long you spoke:
 
-| Mode | Median | p90 | Dictations |
-|---|---|---|---|
-| Literal | 0.12 s | 0.20 s | 182 |
-| Polished (no preview) | 0.58 s | 0.95 s | 21 |
+| Mode | Spoke for | Median | p90 | Dictations |
+|---|---|---|---|---|
+| Literal | any | 0.16 s | 0.29 s | 82 |
+| Polished | 3–6 s | 0.56 s | 0.63 s | 24 |
+| Polished | 6–10 s | 0.69 s | 0.80 s | 27 |
+| Polished | 10–20 s | 0.90 s | 1.03 s | 13 |
+| Polished | 20 s+ | 1.44 s | 2.32 s | 20 |
+| Polished | all | 0.71 s | 1.48 s | 89 |
 
 ## Architecture
 
