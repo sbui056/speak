@@ -139,13 +139,14 @@ struct ReplacementPairTests {
             .joined(separator: " ")
         let terms = (0..<200).map { "Term\($0)x" }
         let pairs = (0..<100).map { pair("heard phrase \($0)", "written \($0)") }
-        // Best of 3: a shared CI runner once took 124 ms on a single run.
+        // Best of 3 and a loose bound: about 43 ms on an M2, but shared CI runners are
+        // about 3x slower (131 ms best of 3). A super-linear regression costs seconds.
         let fastest = (0..<3).map { _ in
             ContinuousClock().measure {
                 _ = makeLiteral(text, terms: terms, pairs: pairs, spelling: FakeSpellChecker(), language: "en")
             }
         }.min()!
-        #expect(fastest < .milliseconds(100))
+        #expect(fastest < .milliseconds(250))
     }
 }
 
