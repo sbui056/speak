@@ -19,7 +19,7 @@ struct HUDModelTests {
         await clock.advance(by: Constants.hudOK - .milliseconds(10))
         #expect(hud.content == .result(.inserted))
         await clock.advance(by: .milliseconds(20))
-        #expect(hud.content == nil)
+        #expect(await eventually { hud.content == nil })
     }
 
     @Test func partialTextIsThrottledLatestWins() async {
@@ -43,7 +43,7 @@ struct HUDModelTests {
         #expect(hud.content == .error(.noField))
         hud.hover(false)
         await clock.advance(by: Constants.hudError + .milliseconds(20))
-        #expect(hud.content == nil)
+        #expect(await eventually { hud.content == nil })
     }
 
     @Test func everyChangeIsReported() async {
@@ -55,6 +55,8 @@ struct HUDModelTests {
         hud.show(.processing)
         hud.show(.result(.inserted))
         await clock.advance(by: Constants.hudOK + .milliseconds(20))
+        // The woken hide task hops back to the main actor; under a loaded CI pool that can take more turns than advance's settle.
+        #expect(await eventually { seen.count == 4 })
         #expect(seen == [.listening, .processing, .result(.inserted), nil])
     }
 }
