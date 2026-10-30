@@ -71,4 +71,6 @@ public enum Constants {
     public static let pairsMax = 100
     /// History cap when history is on.
     public static let historyMax = 50
+    /// Typing speed behind the Stats section's estimated time saved.
+    public static let typingWordsPerMinute = 40
 }

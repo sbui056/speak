@@ -69,17 +69,39 @@ public struct AppFiles: Sendable {
 
     /// Removes the history file and every `history.jsonl.corrupt-*` copy.
     public func deleteHistory() {
-        let fm = FileManager.default
-        let names = (try? fm.contentsOfDirectory(atPath: directory.path)) ?? []
-        for name in names where name == Self.historyFile || name.hasPrefix(Self.historyFile + ".corrupt-") {
-            try? fm.removeItem(at: directory.appendingPathComponent(name))
+        delete(Self.historyFile)
+    }
+
+    public func loadUsage() -> Loaded<[DayUsage]> {
+        let url = directory.appendingPathComponent(Self.usageFile)
+        guard let data = try? Data(contentsOf: url) else { return Loaded(value: [], wasCorrupt: false) }
+        do {
+            return Loaded(value: try JSONDecoder().decode(UsageFile.self, from: data).days, wasCorrupt: false)
+        } catch {
+            moveAside(url)
+            return Loaded(value: [], wasCorrupt: true)
         }
+    }
+
+    public func saveUsage(_ days: [DayUsage]) throws {
+        try write(try JSONEncoder().encode(UsageFile(version: 1, days: days)), to: Self.usageFile)
+    }
+
+    /// Removes the usage file and every `usage.json.corrupt-*` copy.
+    public func deleteUsage() {
+        delete(Self.usageFile)
     }
 
     // MARK: Private
 
     private static let dictionaryFile = "dictionary.json"
     private static let historyFile = "history.jsonl"
+    private static let usageFile = "usage.json"
+
+    private struct UsageFile: Codable {
+        var version: Int
+        var days: [DayUsage]
+    }
 
     /// Version 2 added `pairs`; version 1 files have none.
     private struct DictionaryFile: Codable {
@@ -132,6 +154,14 @@ public struct AppFiles: Sendable {
         var pair: ReplacementPair? {
             guard let heard, let write else { return nil }
             return ReplacementPair(heard: heard, write: write)
+        }
+    }
+
+    private func delete(_ file: String) {
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names where name == file || name.hasPrefix(file + ".corrupt-") {
+            try? fm.removeItem(at: directory.appendingPathComponent(name))
         }
     }
 

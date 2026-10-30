@@ -22,6 +22,8 @@ Speak is a menu-bar app built on Apple's SpeechAnalyzer and on-device Foundation
 - Undo insert for 30 seconds, and paste or copy the last transcript from the menu bar.
 - When Speak can't paste (no text field, a password field, keys still held), it copies the text and tells you why.
 - Optional history of your last 50 dictations, as text only. Off by default.
+- Stats for today, 7 days, 30 days, and all time: dictations, words, time spoken, average length, and estimated time saved.
+- Optional start and stop sounds. Off by default.
 
 ## Demos
 
@@ -80,13 +82,14 @@ To uninstall, quit Speak, delete `~/Applications/Speak.app` and `~/Library/Appli
 | Add names and jargon | Menu bar → Dictionary… |
 | Browse history (when on) | Menu bar → History… |
 
-Settings covers permissions, the shortcut key, language, Apple Intelligence status, preview behavior, history, launch at login, diagnostics, and a typing test that inserts a fixed sentence without using the microphone.
+Settings covers permissions, the shortcut key, language, Apple Intelligence status, preview behavior, history, stats, sounds, launch at login, diagnostics, and a typing test that inserts a fixed sentence without using the microphone.
 
 ## Privacy
 
 - No network. Speak has no networking code and no network entitlement. CI checks both on every push (`scripts/check-privacy.sh`).
 - No audio on disk. Audio is held in memory for the length of one dictation.
 - History is off by default. When on, it stores the text of your last 50 dictations in `~/Library/Application Support/Speak/`, readable only by your account and excluded from backups. Delete all history removes it.
+- Stats are daily totals of numbers in the same folder, never text or times of day. Reset removes them.
 - Logs and Copy diagnostics record states, timings, and error codes, never text.
 
 ## Performance

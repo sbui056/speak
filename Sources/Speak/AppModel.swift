@@ -13,6 +13,7 @@ final class AppModel {
     let permissions: PermissionsModel
     let dictionary: DictionaryModel
     let history: HistoryModel
+    let usage: UsageModel
     /// `SPEAK_FAKE=1`: canned audio and transcript, real hotkey and delivery.
     let isFake: Bool
     #if DEBUG
@@ -35,6 +36,7 @@ final class AppModel {
     @ObservationIgnored private let transcriber: SpeechAnalyzerTranscriber?
     @ObservationIgnored private let modelStore: (any SpeechModelStore)?
     @ObservationIgnored private let rewriter: any Rewriter
+    @ObservationIgnored private let soundCues = SoundCues()
     @ObservationIgnored private var hotkeyTask: Task<Void, Never>?
     @ObservationIgnored private var installing = false
     /// Started at release; split into stages as the session reports them.
@@ -70,6 +72,14 @@ final class AppModel {
         }
     }
 
+    /// Quiet start and stop sounds around listening. Off by default.
+    var soundsOn: Bool {
+        didSet {
+            UserDefaults.standard.set(soundsOn, forKey: Keys.sounds)
+            Log.session.info("sounds on=\(self.soundsOn, privacy: .public)")
+        }
+    }
+
     var hotkey: HotkeyChoice {
         didSet {
             UserDefaults.standard.set(hotkey.rawValue, forKey: Keys.hotkey)
@@ -96,6 +106,7 @@ final class AppModel {
         /// The older on/off setting that `previewPolicy` replaces; migrated once, then removed.
         static let alwaysPreview = "alwaysPreview"
         static let history = "history"
+        static let sounds = "sounds"
     }
 
     // MARK: Lifecycle
@@ -115,6 +126,8 @@ final class AppModel {
         let historyOn = defaults.bool(forKey: Keys.history)
         self.historyOn = historyOn
         history = HistoryModel(files: .standard, isOn: historyOn)
+        usage = UsageModel(files: .standard)
+        soundsOn = defaults.bool(forKey: Keys.sounds)
 
         let clock = ContinuousClock()
         var hotkeySource: any HotkeySource = EventTapHotkey()
@@ -183,6 +196,13 @@ final class AppModel {
         controller.onFinished = { [weak self] text in
             self?.finishTiming(previewed: false)
             self?.history.record(text)
+            // Fake and soak dictations aren't the user's.
+            if let self, !isFake { usage.record(text, spoken: controller.state.spoken) }
+        }
+        controller.onCue = { [weak self] cue in
+            guard let self, soundsOn else { return }
+            soundCues.play(cue)
+            Log.session.info("sound cue \(String(describing: cue), privacy: .public)")
         }
         controller.onRewriteRejected = { mode, why in
             Log.rewrite.notice("rewrite rejected by the guard mode=\(mode.rawValue, privacy: .public) why=\(why.name, privacy: .public)")

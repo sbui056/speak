@@ -135,6 +135,7 @@ struct Reducer {
         guard let id = state.current else { return }
         if let at, at - state.pressedAt < Constants.minAudio { return discard() }
         if state.peakDBFS < Constants.silenceDBFS { return discard() }
+        state.spoken = at.map { $0 - state.pressedAt } ?? Constants.cap
         state.phase = .finalizing
         emit(.stopAudio(id), .finalizeTranscriber(id),
              .startTimer(id, .finalize, after: Constants.finalize),

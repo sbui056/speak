@@ -39,6 +39,8 @@ public final class SessionController {
     @ObservationIgnored public var onStage: ((SessionStage) -> Void)?
     /// Called after every transition, for logging. Never sees transcript text.
     @ObservationIgnored public var onTransition: ((Phase, Phase, SessionID?) -> Void)?
+    /// Called when listening starts, and again once the mic has closed after it.
+    @ObservationIgnored public var onCue: ((SoundCue) -> Void)?
     /// The key the poll asks about when a key-up may have been lost.
     @ObservationIgnored public var hotkeyChoice: HotkeyChoice = .rightOption
 
@@ -132,6 +134,20 @@ public final class SessionController {
         reportFinished(event, before: before)
         if before.phase != next.phase { onTransition?(before.phase, next.phase, before.current ?? next.current) }
         for effect in effects { perform(effect) }
+        reportCue(before: before)
+    }
+
+    /// Start waits out the hold, so taps stay silent. Stop follows the mic closing, so it's never
+    /// recorded. A release so quick that listening starts and ends in one event plays neither.
+    private func reportCue(before: SessionState) {
+        if before.phase != .listening, state.phase == .listening { onCue?(.start) }
+        if before.phase == .listening, state.phase != .listening {
+            let closing = audioTail
+            Task { [weak self] in
+                await closing?.value
+                self?.onCue?(.stop)
+            }
+        }
     }
 
     /// Finalize and cleanup, as the reducer accepts them. Rewrites and deliveries

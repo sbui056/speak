@@ -28,6 +28,8 @@ public struct SessionState: Equatable, Sendable {
     public var literal: String?
     /// What was actually inserted or copied: the literal, the accepted rewrite, or an edit.
     public var delivered: String?
+    /// How long the key was held in the last dictation that reached finalizing, for the Stats section.
+    public var spoken: Duration = .zero
     public var mode: RewriteMode = .literal
     public var previewPolicy: PreviewPolicy = .whenChanged
     /// The last delivery was a rewrite with changed words that skipped the preview (Show preview = Never).

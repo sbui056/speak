@@ -309,3 +309,54 @@ struct LifecycleTests {
         #expect(h.controller.state.current == SessionID(1))
     }
 }
+
+// MARK: - Sound cues
+
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct SoundCueTests {
+    /// Every cue, with whether the mic was open when it played.
+    private func recordCues(_ h: Harness) -> () -> [(SoundCue, Bool)] {
+        var cues: [(SoundCue, Bool)] = []
+        h.controller.onCue = { cues.append(($0, h.audio.isOpen)) }
+        return { cues }
+    }
+
+    @Test func aDictationPlaysStartThenStopAfterTheMicCloses() async {
+        let h = Harness()
+        let cues = recordCues(h)
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle })
+        #expect(await eventually { cues().count == 2 })
+        #expect(cues().map(\.0) == [.start, .stop])
+        #expect(cues()[1].1 == false)
+    }
+
+    @Test func aTapIsSilent() async {
+        let h = Harness()
+        let cues = recordCues(h)
+        await h.hold(for: Constants.hold / 2)
+        #expect(await eventually { h.phase == .idle && !h.audio.isOpen })
+        #expect(cues().isEmpty)
+    }
+
+    @Test func cancellingAfterTheStartSoundStillPlaysStop() async {
+        let h = Harness()
+        let cues = recordCues(h)
+        h.hotkey.press()
+        await h.clock.advance(by: .milliseconds(500))
+        #expect(await eventually { h.phase == .listening })
+        h.controller.send(.cancel)
+        #expect(await eventually { cues().count == 2 })
+        #expect(cues().map(\.0) == [.start, .stop])
+        #expect(cues()[1].1 == false)
+        h.hotkey.release()
+    }
+
+    @Test func theSpokenTimeOutlastsTheSession() async {
+        let h = Harness()
+        await h.hold(for: .milliseconds(1500))
+        #expect(await eventually { h.phase == .idle })
+        #expect(h.controller.state.spoken == .milliseconds(1500))
+    }
+}

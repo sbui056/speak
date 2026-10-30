@@ -51,6 +51,11 @@ public enum TimerKind: Equatable, Sendable {
     case prewarm
 }
 
+/// The start and stop sounds around listening.
+public enum SoundCue: Equatable, Sendable {
+    case start, stop
+}
+
 /// Milestones of one dictation, reported for timing. Never carries text.
 public enum SessionStage: Equatable, Sendable {
     case finalized

@@ -28,6 +28,8 @@ private struct SettingsView: View {
     @Bindable var app: AppModel
     let openHistory: () -> Void
     @State private var confirmDelete = false
+    @State private var confirmResetStats = false
+    @State private var statsRange = UsageRange.week
     @State private var testText = ""
     @State private var testResult: Messages?
     @State private var copiedDiagnostics = false
@@ -121,7 +123,38 @@ private struct SettingsView: View {
                 }
             }
 
+            Section("Stats") {
+                Picker("Range", selection: $statsRange) {
+                    ForEach(UsageRange.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                let stats = app.usage.summary(statsRange)
+                LabeledContent("Dictations", value: stats.dictations.formatted())
+                LabeledContent("Words", value: stats.words.formatted())
+                LabeledContent("Time spoken", value: UsageSummary.durationText(stats.seconds))
+                LabeledContent("Average length", value: averageText(stats))
+                LabeledContent("Estimated time saved", value: UsageSummary.durationText(stats.secondsSaved))
+                HStack {
+                    Text("Daily totals only, kept on this Mac; never your text. Time saved assumes you type \(Constants.typingWordsPerMinute) words a minute.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Reset…") { confirmResetStats = true }
+                        .disabled(app.usage.days.isEmpty)
+                }
+                .confirmationDialog("Reset all stats?", isPresented: $confirmResetStats) {
+                    Button("Reset", role: .destructive) {
+                        Log.session.info("stats reset days=\(app.usage.days.count, privacy: .public)")
+                        app.usage.reset()
+                    }
+                }
+                if app.usage.saveFailed {
+                    Text("Couldn't save stats. They'll be lost when Speak quits.").font(.caption).foregroundStyle(.red)
+                }
+            }
+
             Section("General") {
+                Toggle("Start and stop sounds", isOn: $app.soundsOn)
                 Toggle("Launch at login", isOn: Binding(get: { app.launchAtLogin },
                                                         set: { app.setLaunchAtLogin($0) }))
                 if app.loginNeedsApproval {
@@ -167,7 +200,7 @@ private struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        // Seven sections don't fit a small screen; the form scrolls.
+        // Eight sections don't fit a small screen; the form scrolls.
         .frame(width: 480, height: 640)
     }
 
@@ -190,6 +223,11 @@ private struct SettingsView: View {
             testResult = Messages.typingTest(outcome, landed: landed)
             Log.insert.info("test dictation \(String(describing: outcome), privacy: .public) landed=\(landed, privacy: .public)")
         }
+    }
+
+    private func averageText(_ stats: UsageSummary) -> String {
+        guard let words = stats.averageWords, let seconds = stats.averageSeconds else { return "—" }
+        return "\(words) words, \(UsageSummary.durationText(seconds))"
     }
 
     /// The supported languages, plus the current one even before they've loaded.

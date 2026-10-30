@@ -26,6 +26,7 @@ extension AppModel {
             settings: [("mode", mode.rawValue), ("previewPolicy", previewPolicy.rawValue),
                        ("hotkey", hotkey.rawValue), ("language", locale.identifier),
                        ("history", historyOn ? "last\(Constants.historyMax)" : "off"),
+                       ("sounds", soundsOn ? "on" : "off"),
                        ("launchAtLogin", launchAtLogin ? (loginNeedsApproval ? "needsApproval" : "on") : "off"),
                        ("dictionaryTerms", String(dictionary.terms.count)), ("fake", String(isFake))],
             timings: timings
