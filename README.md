@@ -94,16 +94,18 @@ Settings covers permissions, the shortcut key, language, Apple Intelligence stat
 
 ## Performance
 
-Time from releasing the key to text at the cursor, on an M2 MacBook Air, from Speak's own timing logs over three days of real use. Polished time grows with how long you spoke:
+Time from releasing the key to text at the cursor, on an M2 MacBook Air, from Speak's own timing logs in real use. Literal is from v1.3.0 (four days of logs); Polished is from v1.2.0 (three days). Polished time grows with how long you spoke:
 
 | Mode | Spoke for | Median | p90 | Dictations |
 |---|---|---|---|---|
-| Literal | any | 0.16 s | 0.29 s | 82 |
+| Literal | any | 0.15 s | 0.24 s | 158 |
 | Polished | 3–6 s | 0.56 s | 0.63 s | 24 |
 | Polished | 6–10 s | 0.69 s | 0.80 s | 27 |
 | Polished | 10–20 s | 0.90 s | 1.03 s | 13 |
 | Polished | 20 s+ | 1.44 s | 2.32 s | 20 |
 | Polished | all | 0.71 s | 1.48 s | 89 |
+
+v1.3.0 has been in daily use for 19 days: 1,189 dictations and about 28,900 words. Memory sits around 26 MB and grew under 1 MB over 66 dictations.
 
 ## Architecture
 
